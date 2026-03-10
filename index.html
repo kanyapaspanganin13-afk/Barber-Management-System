@@ -18,174 +18,6 @@
     <script src="script.js" defer></script>
 </head>
 <body>
-<script>
-// เปลี่ยนจาก $ เป็น getEl เพื่อความปลอดภัย
-const getEl = id => document.getElementById(id);
-async function openComparisonSelector() {
-    if (typeof Swal === 'undefined') {
-        alert("กรุณารอระบบโหลดสักครู่ หรือเช็คการเชื่อมต่ออินเทอร์เน็ต");
-        return;
-    }
-    const { value: v } = await Swal.fire({
-        title: '📊 เปรียบเทียบข้อมูล',
-        confirmButtonText: 'วิเคราะห์ข้อมูล',
-        confirmButtonColor: '#38bdf8',
-        html: `
-            <div style="text-align: left; font-family: 'Kanit', sans-serif; font-size: 14px; color: #1e293b;">
-                <p style="margin: 0 0 5px 0; color: #64748b;">📅 ช่วงที่ 1 </p>
-                <div style="display: flex; gap: 8px; margin-bottom: 15px;">
-                    <input id="s1" type="date" class="swal2-input" style="flex:1; margin:0; height:45px; font-size:14px; border-radius:12px; border: 1px solid #cbd5e1;">
-                    <input id="e1" type="date" class="swal2-input" style="flex:1; margin:0; height:45px; font-size:14px; border-radius:12px; border: 1px solid #cbd5e1;">
-                </div>
-                <p style="margin: 0 0 5px 0; color: #64748b;">📅 ช่วงที่ 2 </p>
-                <div style="display: flex; gap: 8px;">
-                    <input id="s2" type="date" class="swal2-input" style="flex:1; margin:0; height:45px; font-size:14px; border-radius:12px; border: 1px solid #cbd5e1;">
-                    <input id="e2" type="date" class="swal2-input" style="flex:1; margin:0; height:45px; font-size:14px; border-radius:12px; border: 1px solid #cbd5e1;">
-                </div>
-            </div>
-        `,
-        preConfirm: () => ({ 
-            s1: getEl('s1').value, e1: getEl('e1').value, 
-            s2: getEl('s2').value, e2: getEl('e2').value 
-        })
-    });
-
-    if (v && v.s1 && v.e1 && v.s2 && v.e2) renderComparisonReport(v);
-}
-function renderComparisonReport(v) {
-    const formatThaiDate = (dateStr) => {
-        const days = ['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.'];
-        const dt = new Date(dateStr);
-        const dayName = days[dt.getDay()];
-        const [y, m, d] = dateStr.split('-');
-        return `${dayName} ${d}/${m}/${(parseInt(y) + 543).toString().slice(-2)}`;
-    };
-
-    const fetchStats = (start, end) => {
-        let list = [];
-        let currentDate = new Date(start);
-        const stopDate = new Date(end);
-
-        while (currentDate <= stopDate) {
-            const dateStr = currentDate.toISOString().split('T')[0];
-            if (typeof archives !== 'undefined') {
-                const dayData = archives.find(a => a.date === dateStr);
-               if (dayData) {
-                    let realCustomerCount = 0;
-                    if (dayData.details && Array.isArray(dayData.details)) {
-                        realCustomerCount = dayData.details.filter(d => {
-                            const itemName = Array.isArray(d.svcs) ? d.svcs.join("") : String(d.svcs || "");
-                            const isInsurance = d.type === "GUARANTEE_CLAIM" || itemName.includes("ประกัน");
-                            return !isInsurance; 
-                        }).length;
-                    }
-                    list.push({
-                        date: formatThaiDate(dateStr),
-                        count: realCustomerCount,
-                        barber: dayData.barber || 0
-                    });
-                }
-            }
-            currentDate.setDate(currentDate.getDate() + 1);
-        }
-        const sumC = list.reduce((a, b) => a + Number(b.count || 0), 0);
-        const sumE = list.reduce((a, b) => a + Number(b.barber || 0), 0);
-        
-        // 🎯 1. ลด padding แถวรายวันให้ชิดกัน (จาก 10px เหลือ 4px)
-        const rowList = list.length > 0 ? list.map(d => `
-            <div style="display:flex; justify-content:space-between; padding:4px 8px; border-bottom:1px solid rgba(0,0,0,0.05); font-size:12px; color:#334155;">
-                <span style="flex:1.5; font-weight:500;">${d.date}</span>
-                <span style="flex:1; text-align:center; color:#1d4ed8; font-weight:700;">👤 ${d.count}</span>
-                <span style="flex:1.2; text-align:right; color:#059669; font-weight:700;">฿${Number(d.barber).toLocaleString()}</span>
-            </div>`).join("") : `<div style="padding:10px; text-align:center; color:#94a3b8;">❌ ไม่พบข้อมูล</div>`;
-        
-        return { sumC, sumE, rowList, range: `${formatThaiDate(start)} - ${formatThaiDate(end)}` };
-    };
-
-    const d1 = fetchStats(v.s1, v.e1);
-    const d2 = fetchStats(v.s2, v.e2);
-// 🎯 ปรับสีพื้นหลังให้เข้มขึ้น (Blue/Green) และนำเส้นขอบออก
-    const reportHtml = `
-        <div style="font-family:'Kanit', sans-serif; display:flex; flex-direction:column; height:75vh; width:100%; box-sizing:border-box; background:#ffffff; gap:10px; padding:5px;">
-            
-            <div style="text-align:center; font-size:12px; color:#64748b; flex-shrink:0; padding-bottom:5px; border-bottom:1px solid #f1f5f9;">
-                วิเคราะห์ข้อมูลเฉพาะรายได้ช่าง
-            </div>
-            
-        <div style="flex: 4; display:flex; flex-direction:column; background: var(--summary-bg); border: 1px solid var(--summary-border); border-radius:16px; padding:10px; overflow:hidden;">
-            <div style="color: var(--accent); font-weight:700; font-size:14px; margin-bottom:5px;">📅 ${d1.range}</div>
-            
-            <div style="display:flex; justify-content:space-between; align-items:center; background: var(--card); opacity: 0.9; padding:6px 10px; border-radius:12px; margin-bottom:5px; flex-shrink:0; border: 1px solid var(--border);">
-                <span style="font-weight:800; font-size:13px; color: var(--text);">สรุปยอด</span>
-                <span style="color: var(--primary); font-weight:800; font-size:16px;">👤 ${d1.sumC}</span>
-                <span style="color: var(--success); font-weight:800; font-size:16px;">฿${d1.sumE.toLocaleString()}</span>
-            </div>
-            
-            <div style="flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; color: var(--text);">
-                ${d1.rowList}
-            </div>
-        </div>
-        
-        <div style="text-align:center; color: var(--text); opacity: 0.4; font-weight:900; font-size:10px; flex-shrink:0; align-self:center;">VS</div>
-        
-        <div style="flex: 6; display:flex; flex-direction:column; background: var(--input-bg); border: 1px solid var(--border); border-radius:16px; padding:10px; overflow:hidden;">
-            <div style="color: var(--success); font-weight:700; font-size:14px; margin-bottom:5px;">📅 ${d2.range}</div>
-            
-            <div style="display:flex; justify-content:space-between; align-items:center; background: var(--card); opacity: 0.9; padding:6px 10px; border-radius:12px; margin-bottom:5px; flex-shrink:0; border: 1px solid var(--border);">
-                <span style="font-weight:800; font-size:13px; color: var(--text);">สรุปยอด</span>
-                <span style="color: var(--primary); font-weight:800; font-size:16px;">👤 ${d2.sumC}</span>
-                <span style="color: var(--success); font-weight:800; font-size:16px;">฿${d2.sumE.toLocaleString()}</span>
-            </div>
-            
-            <div style="flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; color: var(--text);">
-                ${d2.rowList}
-            </div>
-        </div>     
-    </div>`;
-
-    // 🎯 เพิ่มการตั้งค่าให้ Swal กว้างเต็มที่
-    openReportModal("รายงานการเปรียบเทียบข้อมูล", reportHtml);
-} 
-function openReportModal(title, htmlContent) {
-    const modal = getEl('reportModal');
-    const modalTitle = getEl('reportTitle');
-    const modalContent = getEl('reportContent');
-    
-    if (!modal || !modalTitle || !modalContent) {
-        console.error("❌ หา ID Modal ไม่เจอ!");
-        return;
-    }
-    // 1. ใส่หัวข้อและเนื้อหา
-    modalTitle.innerText = title;
-    modalContent.innerHTML = htmlContent;
-    // 2. จัดสไตล์ modalInner (ตัวกล่องสีขาวครอบข้อมูล)
-    const inner = modalContent.parentElement;
-    // 🎯 แก้ไข: ขยายความกว้างให้เต็มจอที่สุด (98%) และเอา maxWidth ออกหรือขยายเพิ่ม
-    inner.style.width = "98%";            // ขยายให้เกือบชิดขอบจอซ้าย-ขวา
-    inner.style.maxWidth = "100%";        // ปลดล็อกขีดจำกัดความกว้างเดิม (650px)
-    // 🎯 แก้ไข: ขยายความยาวให้เกือบเต็มหน้าจอแนวตั้ง
-    inner.style.height = "auto";
-    inner.style.maxHeight = "95vh";       // ขยายจาก 85 เป็น 95 เพื่อให้เห็นข้อมูลยาวขึ้น
-    // 🎯 แก้ไข: ลด Padding ของตัวกล่องขาวลง เพื่อให้เนื้อหาข้างในกางได้กว้างขึ้น
-    inner.style.padding = "15px 8px";     // บน-ล่าง 15px | ซ้าย-ขวา 8px (ประหยัดพื้นที่ข้าง)
-    
-    inner.style.margin = "auto";
-    inner.style.background = "#ffffff";
-    inner.style.borderRadius = "20px";    // ปรับขอบมนให้พอดี
-    inner.style.display = "flex";
-    inner.style.flexDirection = "column";
-    inner.style.overflowY = "auto";
-    inner.style.boxSizing = "border-box"; // ป้องกันความกว้างเกินจอ
-    // ทำให้การไถหน้าจอบน iPhone ลื่นไหล
-    inner.style.webkitOverflowScrolling = "touch";
-    // 3. สั่งแสดงผล Modal
-    modal.style.display = "flex";
-    modal.style.alignItems = "center";
-    modal.style.justifyContent = "center";
-    modal.style.padding = "5px";          // ลด Margin นอกสุดของตัว Modal
-}
-</script>
-</head>
 <style>
 /* ========= 💎 1. THEME SYSTEM (ครบทุกโหมด) ========= */
 :root {
@@ -3057,7 +2889,159 @@ document.addEventListener("DOMContentLoaded", function() {
     }
 });
 /* ==========================================================
-   SECTION 9: SYSTEM STARTUP & EVENT LISTENERS
+   SECTION 9: DATA COMPARISON & ANALYTICS TOOL
+   (ระบบเปรียบเทียบข้อมูลรายได้และจำนวนลูกค้าระหว่างช่วงเวลา)
+   ========================================================== */
+
+// 1. ฉีดสไตล์สำหรับหน้าจอรายงานเปรียบเทียบ (Auto-Injection)
+(function injectCompStyles() {
+    if (getEl('comp-report-style')) return;
+    const style = document.createElement('style');
+    style.id = 'comp-report-style';
+    style.innerHTML = `
+        #reportModal { 
+            display: none; position: fixed; inset: 0; 
+            background: rgba(15, 23, 42, 0.85); z-index: 9999; 
+            backdrop-filter: blur(5px); align-items: center; justify-content: center; 
+        }
+        #reportContentWrapper { 
+            background: #ffffff; border-radius: 24px; width: 98%; max-width: 100%; 
+            height: auto; max-height: 95vh; padding: 15px 8px; margin: auto; 
+            display: flex; flex-direction: column; overflow-y: auto; 
+            box-sizing: border-box; -webkit-overflow-scrolling: touch; 
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); 
+        }
+    `;
+    document.head.appendChild(style);
+})();
+
+// 2. ฟังก์ชันเปิดหน้าต่างเลือกช่วงวันที่ (ใช้ SweetAlert2)
+async function openComparisonSelector() {
+    if (typeof Swal === 'undefined') {
+        alert("กรุณารอระบบโหลดสักครู่ หรือเช็คการเชื่อมต่ออินเทอร์เน็ต");
+        return;
+    }
+    const { value: v } = await Swal.fire({
+        title: '📊 เปรียบเทียบข้อมูล',
+        confirmButtonText: 'วิเคราะห์ข้อมูล',
+        confirmButtonColor: '#38bdf8',
+        html: `
+            <div style="text-align: left; font-family: 'Kanit', sans-serif; font-size: 14px; color: #1e293b;">
+                <p style="margin: 0 0 5px 0; color: #64748b;">📅 ช่วงที่ 1 </p>
+                <div style="display: flex; gap: 8px; margin-bottom: 15px;">
+                    <input id="s1" type="date" class="swal2-input" style="flex:1; margin:0; height:45px; font-size:14px; border-radius:12px; border: 1px solid #cbd5e1;">
+                    <input id="e1" type="date" class="swal2-input" style="flex:1; margin:0; height:45px; font-size:14px; border-radius:12px; border: 1px solid #cbd5e1;">
+                </div>
+                <p style="margin: 0 0 5px 0; color: #64748b;">📅 ช่วงที่ 2 </p>
+                <div style="display: flex; gap: 8px;">
+                    <input id="s2" type="date" class="swal2-input" style="flex:1; margin:0; height:45px; font-size:14px; border-radius:12px; border: 1px solid #cbd5e1;">
+                    <input id="e2" type="date" class="swal2-input" style="flex:1; margin:0; height:45px; font-size:14px; border-radius:12px; border: 1px solid #cbd5e1;">
+                </div>
+            </div>
+        `,
+        preConfirm: () => ({ 
+            s1: getEl('s1').value, e1: getEl('e1').value, 
+            s2: getEl('s2').value, e2: getEl('e2').value 
+        })
+    });
+
+    if (v && v.s1 && v.e1 && v.s2 && v.e2) renderComparisonReport(v);
+}
+
+// 3. ฟังก์ชันประมวลผลและสร้างเนื้อหารายงาน
+function renderComparisonReport(v) {
+    const formatThaiDate = (dateStr) => {
+        const days = ['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.'];
+        const dt = new Date(dateStr);
+        const dayName = days[dt.getDay()];
+        const [y, m, d] = dateStr.split('-');
+        return \`\${dayName} \${d}/\${m}/\${(parseInt(y) + 543).toString().slice(-2)}\`;
+    };
+
+    const fetchStats = (start, end) => {
+        let list = [];
+        let currentDate = new Date(start);
+        const stopDate = new Date(end);
+
+        while (currentDate <= stopDate) {
+            const dateStr = currentDate.toISOString().split('T')[0];
+            if (typeof archives !== 'undefined') {
+                const dayData = archives.find(a => a.date === dateStr);
+                if (dayData) {
+                    let realCount = 0;
+                    if (dayData.details && Array.isArray(dayData.details)) {
+                        realCount = dayData.details.filter(d => {
+                            const itemName = Array.isArray(d.svcs) ? d.svcs.join("") : String(d.svcs || "");
+                            return d.type !== "GUARANTEE_CLAIM" && !itemName.includes("ประกัน");
+                        }).length;
+                    }
+                    list.push({
+                        date: formatThaiDate(dateStr),
+                        count: realCount,
+                        barber: dayData.barber || 0
+                    });
+                }
+            }
+            currentDate.setDate(currentDate.getDate() + 1);
+        }
+        
+        const sumC = list.reduce((a, b) => a + Number(b.count || 0), 0);
+        const sumE = list.reduce((a, b) => a + Number(b.barber || 0), 0);
+        const rowList = list.length > 0 ? list.map(d => `
+            <div style="display:flex; justify-content:space-between; padding:4px 8px; border-bottom:1px solid rgba(0,0,0,0.05); font-size:12px;">
+                <span style="flex:1.5; font-weight:500;">\${d.date}</span>
+                <span style="flex:1; text-align:center; color:#1d4ed8; font-weight:700;">👤 \${d.count}</span>
+                <span style="flex:1.2; text-align:right; color:#059669; font-weight:700;">฿\${Number(d.barber).toLocaleString()}</span>
+            </div>`).join("") : `<div style="padding:10px; text-align:center; color:#94a3b8;">❌ ไม่พบข้อมูล</div>`;
+        
+        return { sumC, sumE, rowList, range: \`\${formatThaiDate(start)} - \${formatThaiDate(end)}\` };
+    };
+
+    const d1 = fetchStats(v.s1, v.e1);
+    const d2 = fetchStats(v.s2, v.e2);
+
+    const reportHtml = `
+        <div style="font-family:'Kanit', sans-serif; display:flex; flex-direction:column; height:75vh; width:100%; box-sizing:border-box; background:#ffffff; gap:10px; padding:5px;">
+            <div style="text-align:center; font-size:12px; color:#64748b; border-bottom:1px solid #f1f5f9; padding-bottom:5px;">วิเคราะห์เฉพาะรายได้ช่าง</div>
+            
+            <div style="flex:4; display:flex; flex-direction:column; background:#f8fafc; border:1px solid #e2e8f0; border-radius:16px; padding:10px; overflow:hidden;">
+                <div style="color:#0f172a; font-weight:700; font-size:14px;">📅 \${d1.range}</div>
+                <div style="display:flex; justify-content:space-between; background:#fff; padding:6px; border-radius:12px; margin:5px 0; border:1px solid #f1f5f9;">
+                    <span style="color:#1d4ed8; font-weight:800;">👤 \${d1.sumC}</span>
+                    <span style="color:#059669; font-weight:800;">฿\${d1.sumE.toLocaleString()}</span>
+                </div>
+                <div style="flex:1; overflow-y:auto;">\${d1.rowList}</div>
+            </div>
+            
+            <div style="text-align:center; color:#cbd5e1; font-weight:900; font-size:10px;">VS</div>
+            
+            <div style="flex:6; display:flex; flex-direction:column; background:#f0fdf4; border:1px solid #dcfce7; border-radius:16px; padding:10px; overflow:hidden;">
+                <div style="color:#166534; font-weight:700; font-size:14px;">📅 \${d2.range}</div>
+                <div style="display:flex; justify-content:space-between; background:#fff; padding:6px; border-radius:12px; margin:5px 0; border:1px solid #f1f5f9;">
+                    <span style="color:#1d4ed8; font-weight:800;">👤 \${d2.sumC}</span>
+                    <span style="color:#059669; font-weight:800;">฿\${d2.sumE.toLocaleString()}</span>
+                </div>
+                <div style="flex:1; overflow-y:auto;">\${d2.rowList}</div>
+            </div>      
+        </div>`;
+
+    openReportModal("รายงานการเปรียบเทียบข้อมูล", reportHtml);
+}
+
+// 4. ฟังก์ชันจัดการ Modal (UI)
+function openReportModal(title, htmlContent) {
+    const modal = getEl('reportModal');
+    const modalTitle = getEl('reportTitle');
+    const modalContent = getEl('reportContent');
+    
+    if (!modal) return;
+    
+    modalTitle.innerText = title;
+    modalContent.innerHTML = htmlContent;
+    modal.style.display = "flex";
+}
+/* ==========================================================
+   SECTION 10: SYSTEM STARTUP & EVENT LISTENERS
    (สวิตช์เปิดเครื่อง: การเริ่มต้นและดักจับเหตุการณ์)
    ========================================================== */
 // 1. ดักจับการคลิกพื้นหลังเพื่อปิด Modal (คงเดิมแต่เพิ่มความปลอดภัย)
