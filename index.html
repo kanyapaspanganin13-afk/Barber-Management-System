@@ -2165,7 +2165,7 @@ function renderHistoryList() {
    (ส่วนสถิติ รายงาน และการส่งข้อมูลเข้า LINE)
    ========================================================== */
 async function exportToExcel() {
-    // เช็ค Library XLSX
+    // 1. เช็ค Library XLSX
     if (typeof XLSX === 'undefined') {
         Swal.fire('แจ้งเตือน', 'ระบบกำลังโหลดเครื่องมือ Excel... กรุณาลองใหม่ใน 2 วินาที', 'warning');
         return;
@@ -2187,7 +2187,7 @@ async function exportToExcel() {
     }
 
     try {
-        // เตรียมข้อมูล JSON สำหรับ Excel
+        // 2. เตรียมข้อมูล JSON สำหรับ Excel
         const data = filtered.map(day => {
             let totalCust = 0, services = [];
             if (day.details && Array.isArray(day.details)) {
@@ -2209,15 +2209,13 @@ async function exportToExcel() {
             };
         });
 
-        // สร้าง Workbook
+        // 3. สร้าง Workbook และกำหนดความกว้าง
         const ws = XLSX.utils.json_to_sheet(data);
         const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
-
-        // ตั้งค่าความกว้างคอลัมน์
+        XLSX.utils.book_append_sheet(wb, ws, "Report");
         ws['!cols'] = [{wch:12}, {wch:8}, {wch:12}, {wch:12}, {wch:12}, {wch:10}, {wch:40}];
 
-        // เขียนไฟล์เป็นสตรีมข้อมูล (สำคัญมากสำหรับมือถือ)
+        // 4. เขียนไฟล์เป็น Binary
         const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'binary' });
 
         function s2ab(s) {
@@ -2226,38 +2224,46 @@ async function exportToExcel() {
             for (let i = 0; i < s.length; i++) view[i] = s.charCodeAt(i) & 0xFF;
             return buf;
         }
-            const blob = new Blob([s2ab(wbout)], { type: "application/octet-stream" });
-            const fileName = `Report_Barber_${m}.xlsx`;
-            
-            const url = window.URL.createObjectURL(blob);
-            
-            // 👇 ตรวจจับมือถือ
-            if (/Android|iPhone|iPad/i.test(navigator.userAgent)) {
-                // 👉 เปิดไฟล์แทนดาวน์โหลด
-                window.open(url, "_blank");
-            
-                Swal.fire(
-                    '📥 เปิดไฟล์แล้ว',
-                    'ถ้าไม่โหลดอัตโนมัติ ให้กด "แชร์" แล้วเลือกบันทึกไฟล์ หรือเปิดใน Excel',
-                    'info'
-                );
-            } else {
-                // PC ใช้แบบเดิม
-                const a = document.createElement("a");
-                a.href = url;
-                a.download = fileName;
-                document.body.appendChild(a);
-                a.click();
-            
-                setTimeout(() => {
-                    window.URL.revokeObjectURL(url);
-                    document.body.removeChild(a);
-                }, 300);
-            
-                Swal.fire('สำเร็จ!', 'ดาวน์โหลดไฟล์เรียบร้อยแล้ว', 'success');
-            }
-         }
+
+        // ระบุ Type เป็น Excel แท้ๆ เพื่อให้มือถือเรียกแอปถูก
+        const blob = new Blob([s2ab(wbout)], { 
+            type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" 
+        });
+        const fileName = `Report_Barber_${m}.xlsx`;
+        const url = window.URL.createObjectURL(blob);
         
+        // 5. แยกการทำงานระหว่าง PC และ Mobile
+        if (/Android|iPhone|iPad/i.test(navigator.userAgent)) {
+            // Mobile: ใช้ window.location.assign หรือเปิดหน้าต่างใหม่
+            window.location.assign(url); 
+            
+            Swal.fire({
+                title: '📥 กำลังเปิดไฟล์...',
+                text: 'หากไฟล์ไม่แสดง ให้กดเปิดใน Safari/Chrome หรือตรวจสอบแอป "ไฟล์/Files" ในเครื่องครับ',
+                icon: 'info',
+                confirmButtonColor: '#0f172a'
+            });
+        } else {
+            // PC: ใช้การสร้าง Link และ Click
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = fileName;
+            document.body.appendChild(a);
+            a.click();
+            
+            setTimeout(() => {
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+            }, 300);
+            
+            Swal.fire('สำเร็จ!', 'ดาวน์โหลดไฟล์เรียบร้อยแล้ว', 'success');
+        }
+
+    } catch (error) {
+        console.error(error);
+        Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถส่งออกไฟล์ได้: ' + error.message, 'error');
+    }
+}
 function loadHistDaily() {
     const d = $("histDate").value;
     if (!d) return;
