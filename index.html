@@ -701,7 +701,7 @@ nav {
                     <button onclick="document.getElementById('modalSet').style.display='none'" style="background:var(--bg); color:var(--text); opacity:0.7; height:60px; border-radius:20px; border:none; font-weight:800; font-size:16px;">ปิด</button>
                 </div>
                 <div style="text-align:center; line-height: 1.4; opacity: 0.5;">
-                    <div style="font-size:10px; color:var(--text); font-weight:600;">V.1.0.3</div>
+                    <div style="font-size:10px; color:var(--text); font-weight:600;">V.1.0.4</div>
                     <div style="font-size:9px; color:var(--text); font-weight:400;">Update: 27/03/2026</div>
                 </div>
             </div>
@@ -739,7 +739,7 @@ nav {
    ========================================================== */
 const $ = (id) => document.getElementById(id);
 // 1. ตั้งค่าเลขเวอร์ชันและวันที่
-const APP_VERSION = "1.0.3"; 
+const APP_VERSION = "1.0.4"; 
 const LAST_UPDATED = "27/03/2026"; 
 // 2. ระบบอัปเดตอัตโนมัติ (ใส่ไว้ตรงนี้เพื่อให้ทำงานทันทีที่โหลดสคริปต์)
 (function autoUpdate() {
@@ -2226,33 +2226,37 @@ async function exportToExcel() {
             for (let i = 0; i < s.length; i++) view[i] = s.charCodeAt(i) & 0xFF;
             return buf;
         }
-
-        const blob = new Blob([s2ab(wbout)], { type: "application/octet-stream" });
-        const fileName = `Report_Barber_${m}.xlsx`;
-
-        // บังคับดาวน์โหลด
-        if (navigator.msSaveBlob) {
-            navigator.msSaveBlob(blob, fileName);
-        } else {
+            const blob = new Blob([s2ab(wbout)], { type: "application/octet-stream" });
+            const fileName = `Report_Barber_${m}.xlsx`;
+            
             const url = window.URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = fileName;
-            document.body.appendChild(a);
-            a.click();
-            setTimeout(() => {
-                window.URL.revokeObjectURL(url);
-                document.body.removeChild(a);
-            }, 100);
-        }
-
-        Swal.fire('สำเร็จ!', 'ดาวน์โหลดไฟล์เรียบร้อยแล้ว<br>เช็คได้ที่แอป "ไฟล์" หรือ "ดาวน์โหลด"', 'success');
-
-    } catch (e) {
-        console.error(e);
-        Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถสร้างไฟล์ได้: ' + e.message, 'error');
-    }
-}
+            
+            // 👇 ตรวจจับมือถือ
+            if (/Android|iPhone|iPad/i.test(navigator.userAgent)) {
+                // 👉 เปิดไฟล์แทนดาวน์โหลด
+                window.open(url, "_blank");
+            
+                Swal.fire(
+                    '📥 เปิดไฟล์แล้ว',
+                    'ถ้าไม่โหลดอัตโนมัติ ให้กด "แชร์" แล้วเลือกบันทึกไฟล์ หรือเปิดใน Excel',
+                    'info'
+                );
+            } else {
+                // PC ใช้แบบเดิม
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = fileName;
+                document.body.appendChild(a);
+                a.click();
+            
+                setTimeout(() => {
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+                }, 300);
+            
+                Swal.fire('สำเร็จ!', 'ดาวน์โหลดไฟล์เรียบร้อยแล้ว', 'success');
+            }
+        
 function loadHistDaily() {
     const d = $("histDate").value;
     if (!d) return;
