@@ -2164,7 +2164,17 @@ function renderHistoryList() {
    SECTION 7: ANALYTICS, REPORTS & SHARING
    (ส่วนสถิติ รายงาน และการส่งข้อมูลเข้า LINE)
    ========================================================== */
-function exportToExcel() {
+async function exportToExcel() {
+    // 🔍 1. แก้ปัญหา: ถ้ายังไม่ได้กดภาพรวม ให้ดึงข้อมูลมาให้ก่อนอัตโนมัติ
+    if (typeof archives === 'undefined' || archives === null || archives.length === 0) {
+        if (typeof fetchArchives === 'function') {
+            await fetchArchives(); // เรียกฟังก์ชันโหลดข้อมูล (ถ้ามี)
+        } else {
+            alert("กรุณากดเมนู 'ภาพรวม' หนึ่งครั้งเพื่อให้ระบบดึงข้อมูลก่อนนะครับ");
+            return;
+        }
+    }
+
     const monthInput = document.getElementById("histMonth");
     const m = monthInput ? monthInput.value : "";
     
@@ -2192,18 +2202,23 @@ function exportToExcel() {
             body { padding: 20px; font-family: 'Tahoma', sans-serif; }
             table { border-collapse: collapse; width: 100%; margin-top: 20px; }
             th { border: 2px solid #ccc; padding: 15px 5px; background-color: #1D6F42; color: white; font-size: 30px; white-space: nowrap; }
-            td { border: 2px solid #ccc; padding: 8px 10px; text-align: center; font-size: 25px; font-weight: 500; }
+            td { border: 2px solid #ccc; padding: 12px 10px; text-align: center; font-size: 25px; font-weight: 500; }
             tr:nth-child(even) { background-color: #f2f2f2; }
+            /* 🔴 ปุ่มปิดแบบใหม่ ไม่เด้งกลับหน้าตั้งค่า */
             .btn-close-report {
                 display: block; width: 100%; padding: 18px; background-color: #e74c3c; 
                 color: white; text-align: center; text-decoration: none; 
                 font-size: 26px; font-weight: bold; border-radius: 12px; margin-bottom: 25px;
+                cursor: pointer; border: none;
             }
         </style>
     `;
 
     let tableHtml = `<html><head><meta charset="utf-8">${style}</head><body>`; 
-    tableHtml += `<a href="javascript:window.close();" class="btn-close-report" onclick="window.history.back();">❌ ปิดหน้ารายงานนี้</a>`;
+    
+    // 🛠️ 2. แก้ปัญหา: เปลี่ยนคำสั่งปิดให้เป็นการปิดหน้าต่าง (window.close) แทนการย้อนกลับ
+    tableHtml += `<button class="btn-close-report" onclick="window.close();">❌ ปิดหน้ารายงานนี้</button>`;
+    
     tableHtml += `<h1 style="text-align:center; font-family: Tahoma; font-size: 38px; margin-bottom: 20px;">รายงานประจำเดือน: ${headThai}</h1>`;
 
     tableHtml += `<table>
@@ -2228,7 +2243,6 @@ function exportToExcel() {
         const dateThai = `${dObj.getDate()} ${thMonths[dObj.getMonth() + 1]} ${(dObj.getFullYear() + 543).toString().slice(-2)}`;
         const dayName = dObj.toLocaleDateString('th-TH', { weekday: 'long' }).replace('วัน', '');
         
-        // บังคับสีแดงที่คำว่า "หยุด" โดยใช้ style โดยตรง
         const displayDay = isOff ? `<span style="color: #e74c3c; font-weight: bold;">หยุด</span>` : dayName;
 
         let countCust = 0, countShave = 0, countWash = 0, countDye = 0;
@@ -2263,7 +2277,6 @@ function exportToExcel() {
             </tr>`;
     });
 
-    // บังคับสีพื้นหลังสีเหลืองที่แถวสรุป (Inline Style)
     tableHtml += `
         <tr style="background-color: #ffd54f; font-weight: bold; font-size: 28px;">
             <td colspan="2" style="border: 2px solid #ccc; padding: 15px;">รวมทั้งสิ้น</td>
@@ -2278,6 +2291,8 @@ function exportToExcel() {
 
     const blob = new Blob([tableHtml], { type: 'application/vnd.ms-excel' });
     const url = URL.createObjectURL(blob);
+    
+    // 📥 3. ปรับการเปิดไฟล์ให้สมูทขึ้น
     const link = document.createElement("a");
     link.href = url;
     link.download = `Report_${m}.xls`;
