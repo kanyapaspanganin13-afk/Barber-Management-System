@@ -2165,12 +2165,18 @@ function renderHistoryList() {
    (ส่วนสถิติ รายงาน และการส่งข้อมูลเข้า LINE)
    ========================================================== */
 async function exportToExcel() {
-    // 🔍 1. แก้ปัญหา: ถ้ายังไม่ได้กดภาพรวม ให้ดึงข้อมูลมาให้ก่อนอัตโนมัติ
+    // 🔍 1. แก้ปัญหา: ดึงข้อมูลจากฐานข้อมูลโดยตรง (ไม่ต้องง้อการกดเมนูภาพรวม)
     if (typeof archives === 'undefined' || archives === null || archives.length === 0) {
-        if (typeof fetchArchives === 'function') {
-            await fetchArchives(); // เรียกฟังก์ชันโหลดข้อมูล (ถ้ามี)
-        } else {
-            alert("กรุณากดเมนู 'ภาพรวม' หนึ่งครั้งเพื่อให้ระบบดึงข้อมูลก่อนนะครับ");
+        try {
+            // เช็คว่ามีฟังก์ชันโหลดข้อมูลในระบบไหม (สมมติชื่อ fetchArchives)
+            if (typeof fetchArchives === 'function') {
+                await fetchArchives(); 
+            } else {
+                alert("ระบบยังไม่ได้โหลดข้อมูลประวัติ กรุณารอหน้าจอโหลดสักครู่ หรือกดเมนู 'ภาพรวม' ก่อนครับ");
+                return;
+            }
+        } catch (e) {
+            alert("ไม่สามารถดึงข้อมูลได้ในขณะนี้");
             return;
         }
     }
@@ -2199,27 +2205,28 @@ async function exportToExcel() {
 
     const style = `
         <style>
-            body { padding: 20px; font-family: 'Tahoma', sans-serif; }
+            body { padding: 20px; font-family: 'Tahoma', sans-serif; text-align: center; }
             table { border-collapse: collapse; width: 100%; margin-top: 20px; }
             th { border: 2px solid #ccc; padding: 15px 5px; background-color: #1D6F42; color: white; font-size: 30px; white-space: nowrap; }
-            td { border: 2px solid #ccc; padding: 12px 10px; text-align: center; font-size: 25px; font-weight: 500; }
+            td { border: 2px solid #ccc; padding: 12px 10px; text-align: center; font-size: 25px; font-weight: 500; color: #000; }
             tr:nth-child(even) { background-color: #f2f2f2; }
-            /* 🔴 ปุ่มปิดแบบใหม่ ไม่เด้งกลับหน้าตั้งค่า */
+            
+            /* 🔴 ปุ่มปิดแบบสมบูรณ์ (ให้กดแล้วเด้งกลับหน้าหลัก) */
             .btn-close-report {
-                display: block; width: 100%; padding: 18px; background-color: #e74c3c; 
+                display: inline-block; width: 90%; padding: 20px; background-color: #4CAF50; 
                 color: white; text-align: center; text-decoration: none; 
-                font-size: 26px; font-weight: bold; border-radius: 12px; margin-bottom: 25px;
-                cursor: pointer; border: none;
+                font-size: 28px; font-weight: bold; border-radius: 15px; margin-bottom: 30px;
+                border: none; cursor: pointer;
             }
         </style>
     `;
 
     let tableHtml = `<html><head><meta charset="utf-8">${style}</head><body>`; 
     
-    // 🛠️ 2. แก้ปัญหา: เปลี่ยนคำสั่งปิดให้เป็นการปิดหน้าต่าง (window.close) แทนการย้อนกลับ
-    tableHtml += `<button class="btn-close-report" onclick="window.close();">❌ ปิดหน้ารายงานนี้</button>`;
+    // 🛠️ แก้ไขจุดปิด: เปลี่ยนเป็นปุ่มที่กดแล้ว Refresh หรือย้อนกลับหน้าแรกแทน
+    tableHtml += `<button class="btn-close-report" onclick="location.reload();">✅ ดาวน์โหลดสำเร็จ (แตะเพื่อกลับ)</button>`;
     
-    tableHtml += `<h1 style="text-align:center; font-family: Tahoma; font-size: 38px; margin-bottom: 20px;">รายงานประจำเดือน: ${headThai}</h1>`;
+    tableHtml += `<h1 style="text-align:center; font-size: 38px; margin-bottom: 20px;">รายงานประจำเดือน: ${headThai}</h1>`;
 
     tableHtml += `<table>
         <thead>
@@ -2279,7 +2286,7 @@ async function exportToExcel() {
 
     tableHtml += `
         <tr style="background-color: #ffd54f; font-weight: bold; font-size: 28px;">
-            <td colspan="2" style="border: 2px solid #ccc; padding: 15px;">รวมทั้งสิ้น</td>
+            <td colspan="2" style="border: 2px solid #ccc; padding: 15px;">รวมยอด</td>
             <td style="border: 2px solid #ccc;">${grandTotalCust.toLocaleString()}</td>
             <td style="border: 2px solid #ccc;">${grandTotalBarber.toLocaleString()}</td>
             <td style="border: 2px solid #ccc;">${grandTotalShave}</td>
@@ -2289,10 +2296,9 @@ async function exportToExcel() {
 
     tableHtml += `</tbody></table></body></html>`;
 
+    // --- ส่วนดาวน์โหลดไฟล์ ---
     const blob = new Blob([tableHtml], { type: 'application/vnd.ms-excel' });
     const url = URL.createObjectURL(blob);
-    
-    // 📥 3. ปรับการเปิดไฟล์ให้สมูทขึ้น
     const link = document.createElement("a");
     link.href = url;
     link.download = `Report_${m}.xls`;
