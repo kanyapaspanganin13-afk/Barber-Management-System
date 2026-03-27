@@ -2165,7 +2165,89 @@ function renderHistoryList() {
    SECTION 7: ANALYTICS, REPORTS & SHARING
    (ส่วนสถิติ รายงาน และการส่งข้อมูลเข้า LINE)
    ========================================================== */
- function loadHistDaily() {
+function exportToExcel() {
+    const $ = (id) => document.getElementById(id);
+    const m = $("histMonth").value; // ดึงเดือนที่ผู้ใช้เลือกจาก Input
+    
+    if (!m) return alert("กรุณาเลือกเดือนที่ต้องการส่งออกก่อนครับ");
+    if (typeof archives === 'undefined' || !archives.length) return alert("ไม่พบข้อมูลประวัติ");
+
+    // 1. กรองข้อมูลเฉพาะเดือนที่เลือก (Logic เดียวกับ loadHistMonth)
+    const filtered = archives.filter(a => a.date && a.date.startsWith(m));
+    
+    if (!filtered.length) return alert(`ไม่พบข้อมูลของเดือน ${m}`);
+
+    // 2. เตรียมหัวตาราง (Headers)
+    // หัวข้อ: วันที่, ประเภท, ยอดรวมวันนั้น, ช่างได้, ร้านได้, จำนวนลูกค้า, ลูกค้าใหม่, ลูกค้าประจำ, รายการบริการ
+    let csvContent = "\uFEFF"; // ใส่ BOM เพื่อให้ Excel อ่านภาษาไทยออก
+    csvContent += "วันที่,ประเภทวัน,ยอดรวม (บาท),ส่วนแบ่งช่าง,รายได้ร้าน,รวมลูกค้า (คน),ลูกค้าใหม่,ลูกค้าประจำ,รายการที่ให้บริการ\n";
+
+    // 3. วนลูปดึงข้อมูลจาก filtered data
+    filtered.forEach(day => {
+        const isOff = (day.off === true || day.type === "HOLIDAY");
+        const typeDay = isOff ? "วันหยุด" : "วันทำงาน";
+        
+        let totalCustomers = 0;
+        let cNew = 0;
+        let cReg = 0;
+        let serviceList = [];
+
+        // ดึงรายละเอียดจาก day.details (ถ้ามี)
+        if (day.details && Array.isArray(day.details)) {
+            day.details.forEach(d => {
+                if (d.type === "SERVICE") {
+                    totalCustomers++;
+                    const type = String(d.custType || "").toLowerCase().trim();
+                    if (type === "new") cNew++;
+                    else if (type === "regular") cReg++;
+                    
+                    // รวมชื่อบริการ/ทรงผม (ถ้ามี)
+                    if (d.svcs) {
+                        const s = Array.isArray(d.svcs) ? d.svcs.join("/") : d.svcs;
+                        serviceList.push(s);
+                    }
+                }
+            });
+        }
+
+        // จัดการเรื่องเครื่องหมายคอมม่าใน Note เพื่อไม่ให้ตาราง Excel เพี้ยน
+        const servicesText = serviceList.length > 0 ? `"${serviceList.join(" | ")}"` : "-";
+        const shopEarn = (Number(day.total) || 0) - (Number(day.barber) || 0);
+
+        // สร้างแถวข้อมูล
+        const row = [
+            day.date,
+            typeDay,
+            Number(day.total) || 0,
+            Number(day.barber) || 0,
+            shopEarn,
+            totalCustomers,
+            cNew,
+            cReg,
+            servicesText
+        ].join(",");
+
+        csvContent += row + "\n";
+    });
+
+    // 4. คำนวณแถวสรุปท้ายตาราง (Grand Total)
+    const totalMonth = filtered.reduce((s, a) => s + (Number(a.total) || 0), 0);
+    const totalBarber = filtered.reduce((s, a) => s + (Number(a.barber) || 0), 0);
+    const totalShop = totalMonth - totalBarber;
+    
+    csvContent += `\n,สรุปยอดรวมเดือน ${m},${totalMonth},${totalBarber},${totalShop}\n`;
+
+    // 5. สั่งดาวน์โหลด
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `รายงาน_Barber_${m}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+function loadHistDaily() {
     const d = $("histDate").value;
     if (!d) return;
     const f = archives.find(a => a.date === d);
