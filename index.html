@@ -2172,22 +2172,51 @@ async function exportToExcel() {
     }
 
     const monthInput = document.getElementById("histMonth");
-    const m = monthInput ? monthInput.value : "";
     
-    if (!m) {
-        Swal.fire('กรุณาเลือกเดือน', 'กรุณาระบุเดือนที่ต้องการส่งออกข้อมูล', 'warning')
-            .then(() => { if(monthInput.showPicker) monthInput.showPicker(); });
-        return;
+    // ตั้งค่าล่วงหน้า: เมื่อเลือกเดือนเสร็จ (ค่าเปลี่ยน) ให้เริ่มประมวลผลทันที
+    monthInput.onchange = () => {
+        runExportProcess(monthInput.value);
+        monthInput.onchange = null; // ล้างค่าทิ้งเพื่อไม่ให้ทำงานซ้ำซ้อน
+    };
+
+    // 2. ตรวจสอบว่ามีค่าเดือนหรือยัง
+    if (!monthInput.value) {
+        await Swal.fire({
+            title: 'กรุณาเลือกเดือน',
+            text: 'กรุณาระบุเดือนที่ต้องการส่งออกข้อมูล',
+            icon: 'warning',
+            confirmButtonText: 'ตกลง',
+            confirmButtonColor: '#0f172a'
+        });
+        
+        // เปิดหน้าต่างเลือกเดือนให้ทันที
+        if (monthInput.showPicker) {
+            monthInput.showPicker();
+        } else {
+            monthInput.focus();
+        }
+        return; 
     }
 
+    // ถ้ามีค่าเดือนอยู่แล้ว ให้ทำงานทันที
+    runExportProcess(monthInput.value);
+}
+
+// แยกฟังก์ชันการสร้างไฟล์ออกมาเพื่อให้เรียกใช้ซ้ำได้
+async function runExportProcess(m) {
+    if (!m) return;
+
+    // กรองข้อมูล
     const filtered = archives.filter(a => a.date && a.date.startsWith(m));
+    
+    // ตรวจสอบว่ามีข้อมูลไหม
     if (!filtered.length) {
         Swal.fire('ไม่พบข้อมูล', `ไม่มีประวัติการทำงานของเดือน ${m}`, 'info');
         return;
     }
 
     try {
-        // 2. เตรียมข้อมูล JSON สำหรับ Excel
+        // 3. เตรียมข้อมูล JSON สำหรับ Excel
         const data = filtered.map(day => {
             let totalCust = 0, services = [];
             if (day.details && Array.isArray(day.details)) {
@@ -2201,21 +2230,23 @@ async function exportToExcel() {
             return {
                 "วันที่": day.date,
                 "สถานะ": (day.off || day.type === "HOLIDAY") ? "หยุด" : "ทำงาน",
-                "ยอดรวม": Number(day.total) || 0,
-                "ส่วนแบ่งช่าง": Number(day.barber) || 0,
-                "รายได้ร้าน": (Number(day.total) || 0) - (Number(day.barber) || 0),
                 "จำนวนลูกค้า": totalCust,
+                "ยอดรวม": Number(day.total) || 0,
+                "รายได้ช่าง": Number(day.barber) || 0,
+                "รายได้ร้าน": (Number(day.total) || 0) - (Number(day.barber) || 0),
                 "รายการบริการ": services.join(" | ") || day.note || "-"
             };
         });
 
-        // 3. สร้าง Workbook และกำหนดความกว้าง
+        // 4. สร้าง Workbook
         const ws = XLSX.utils.json_to_sheet(data);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "Report");
-        ws['!cols'] = [{wch:12}, {wch:8}, {wch:12}, {wch:12}, {wch:12}, {wch:10}, {wch:40}];
+        
+        // กำหนดความกว้างคอลัมน์ (วันที่, สถานะ, ยอดรวม, ช่าง, ร้าน, ลูกค้า, รายการ)
+        ws['!cols'] = [{wch:12}, {wch:8}, {wch:12}, {wch:12}, {wch:12}, {wch:10}, {wch:45}];
 
-        // 4. เขียนไฟล์เป็น Binary
+        // 5. เขียนไฟล์และดาวน์โหลด
         const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'binary' });
 
         function s2ab(s) {
@@ -2225,37 +2256,32 @@ async function exportToExcel() {
             return buf;
         }
 
-        // ระบุ Type เป็น Excel แท้ๆ เพื่อให้มือถือเรียกแอปถูก
         const blob = new Blob([s2ab(wbout)], { 
             type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" 
         });
-        const fileName = `Report_Barber_${m}.xlsx`;
         const url = window.URL.createObjectURL(blob);
-        
-        // 5. แยกการทำงานระหว่าง PC และ Mobile
+        const fileName = `Report_Barber_${m}.xlsx`;
+
         if (/Android|iPhone|iPad/i.test(navigator.userAgent)) {
-            // Mobile: ใช้ window.location.assign หรือเปิดหน้าต่างใหม่
+            // Mobile
             window.location.assign(url); 
-            
             Swal.fire({
                 title: '📥 กำลังเปิดไฟล์...',
-                text: 'หากไฟล์ไม่แสดง ให้กดเปิดใน Safari/Chrome หรือตรวจสอบแอป "ไฟล์/Files" ในเครื่องครับ',
+                text: 'หากไฟล์ไม่แสดง ให้กดเปิดใน Safari/Chrome หรือตรวจเช็คในแอป "Files" ครับ',
                 icon: 'info',
                 confirmButtonColor: '#0f172a'
             });
         } else {
-            // PC: ใช้การสร้าง Link และ Click
+            // PC
             const a = document.createElement("a");
             a.href = url;
             a.download = fileName;
             document.body.appendChild(a);
             a.click();
-            
             setTimeout(() => {
                 window.URL.revokeObjectURL(url);
                 document.body.removeChild(a);
             }, 300);
-            
             Swal.fire('สำเร็จ!', 'ดาวน์โหลดไฟล์เรียบร้อยแล้ว', 'success');
         }
 
