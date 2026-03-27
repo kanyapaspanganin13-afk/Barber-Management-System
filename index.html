@@ -2163,88 +2163,89 @@ function renderHistoryList() {
    SECTION 7: ANALYTICS, REPORTS & SHARING
    (ส่วนสถิติ รายงาน และการส่งข้อมูลเข้า LINE)
    ========================================================== */
-function exportToExcel(monthValue) {
-    // รับค่าเดือนจากปุ่ม (ถ้าไม่มีให้ดึงจาก input)
-    const m = monthValue || document.getElementById("excelMonth").value;
+function exportToExcel() {
+    const monthInput = document.getElementById("histMonth");
+    const m = monthInput ? monthInput.value : "";
     
     if (!m) {
         alert("กรุณาเลือกเดือนที่ต้องการส่งออกก่อนครับ");
-        return;
-    }
-
-    if (typeof archives === 'undefined' || !archives || !archives.length) {
-        alert("ไม่พบข้อมูลประวัติ");
+        monthInput.showPicker(); 
         return;
     }
 
     const filtered = archives.filter(a => a.date && a.date.startsWith(m));
-    if (!filtered.length) {
-        alert(`ไม่พบข้อมูลของเดือน ${m}`);
-        return;
-    }
+    if (!filtered.length) return alert(`ไม่พบข้อมูลของเดือน ${m}`);
 
-    let csvContent = "\uFEFF"; 
-    // 1. หัวข้อคอลัมน์ตามที่คุณต้องการ
-    csvContent += "วันที่,วัน,ลูกค้า(คน),ยอดช่าง,โกนหนวด,สระผม,ย้อมผม/เคมี,รายการอื่นๆ\n";
+    // --- 🎨 กำหนดสไตล์ของตาราง (CSS) ---
+    const style = `
+        <style>
+            table { border-collapse: collapse; width: 100%; font-family: 'Tahoma', sans-serif; font-size: 14px; }
+            th, td { border: 1px solid #ddd; padding: 12px 8px; text-align: center; }
+            th { background-color: #1D6F42; color: white; font-weight: bold; white-space: nowrap; }
+            tr:nth-child(even) { background-color: #f9f9f9; }
+            .date-col { width: 100px; }
+            .note-col { text-align: left; min-width: 150px; color: #555; font-size: 12px; }
+            .money { font-weight: bold; color: #2c3e50; }
+        </style>
+    `;
 
-    const dayNames = ["อาทิตย์", "จันทร์", "อังคาร", "พุธ", "พฤหัสบดี", "ศุกร์", "เสาร์"];
+    // --- 🏗️ สร้างเนื้อหาตาราง HTML ---
+    let tableHtml = `<html><head><meta charset="utf-8">${style}</head><body>`;
+    tableHtml += `<h3>รายงานรายเดือน: ${m}</h3>`;
+    tableHtml += `<table>
+        <thead>
+            <tr>
+                <th class="date-col">วันที่</th>
+                <th>ประเภท</th>
+                <th>รวม (฿)</th>
+                <th>ช่าง (฿)</th>
+                <th>ร้าน (฿)</th>
+                <th>ลูกค้า</th>
+                <th class="note-col">รายการบริการ / หมายเหตุ</th>
+            </tr>
+        </thead>
+        <tbody>`;
 
     filtered.forEach(day => {
-        const dObj = new Date(day.date);
-        const dayName = dayNames[dObj.getDay()];
-
-        let totalCust = 0;
-        let countShave = 0; // โกน
-        let countWash = 0;  // สระ
-        let countDye = 0;   // ย้อม
-        let otherSvcs = [];
+        const isOff = (day.off === true || day.type === "HOLIDAY");
+        const typeDay = isOff ? "หยุด" : "ทำงาน";
+        let totalCustomers = 0, serviceList = [];
 
         if (day.details && Array.isArray(day.details)) {
             day.details.forEach(d => {
                 if (d.type === "SERVICE") {
-                    totalCust++;
-                    const svcs = Array.isArray(d.svcs) ? d.svcs : [d.svcs];
-                    
-                    svcs.forEach(s => {
-                        if (!s) return;
-                        const text = s.trim();
-                        
-                        // เช็กคำจากปุ่มส่งงาน (ปรับคำค้นหาได้ที่นี่)
-                        if (text.includes("โกน") || text.includes("กันหน้า")) {
-                            countShave++;
-                        } else if (text.includes("สระ")) {
-                            countWash++;
-                        } else if (text.includes("ย้อม") || text.includes("สี") || text.includes("ดัด") || text.includes("เคมี")) {
-                            countDye++;
-                        } else {
-                            if (!otherSvcs.includes(text)) otherSvcs.push(text);
-                        }
-                    });
+                    totalCustomers++;
+                    if (d.svcs) {
+                        const s = Array.isArray(d.svcs) ? d.svcs.join(", ") : d.svcs;
+                        serviceList.push(s);
+                    }
                 }
             });
         }
-
-        // 2. เรียงข้อมูลลงแถว (ยอดช่างใช้ตัวเลขจริงจากระบบ)
-        const row = [
-            day.date,
-            dayName,
-            totalCust,
-            Number(day.barber) || 0,
-            countShave,
-            countWash,
-            countDye,
-            `"${otherSvcs.join(" | ")}"`
-        ].join(",");
         
-        csvContent += row + "\n";
+        const shopEarn = (Number(day.total) || 0) - (Number(day.barber) || 0);
+        const servicesText = serviceList.length > 0 ? serviceList.join(" | ") : (day.note || "-");
+
+        tableHtml += `
+            <tr>
+                <td>${day.date}</td>
+                <td style="color: ${isOff ? '#e74c3c' : '#27ae60'}">${typeDay}</td>
+                <td class="money">${Number(day.total).toLocaleString()}</td>
+                <td>${Number(day.barber).toLocaleString()}</td>
+                <td class="money" style="color: #2980b9">${shopEarn.toLocaleString()}</td>
+                <td>${totalCustomers}</td>
+                <td class="note-col">${servicesText}</td>
+            </tr>`;
     });
 
-    // 3. กระบวนการสร้างไฟล์
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    tableHtml += `</tbody></table></body></html>`;
+
+    // --- 📥 สั่งดาวน์โหลดเป็นไฟล์ .xls (Excel) ---
+    const blob = new Blob([tableHtml], { type: 'application/vnd.ms-excel' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", `รายงานรายละเอียด_${m}.csv`);
+    link.href = url;
+    link.download = `Report_Barber_${m}.xls`; // นามสกุล .xls จะทำให้เปิดด้วย Excel แล้วเห็นสไตล์
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
