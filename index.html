@@ -2163,65 +2163,88 @@ function renderHistoryList() {
    SECTION 7: ANALYTICS, REPORTS & SHARING
    (ส่วนสถิติ รายงาน และการส่งข้อมูลเข้า LINE)
    ========================================================== */
-function exportToExcel() {
-    // แก้จุดนี้: ให้ไปดึงค่าจาก id "histMonth" ซึ่งอยู่ในปุ่มสรุปรายเดือน
-    const monthInput = document.getElementById("histMonth");
-    const m = monthInput ? monthInput.value : "";
+function exportToExcel(monthValue) {
+    // รับค่าเดือนจากปุ่ม (ถ้าไม่มีให้ดึงจาก input)
+    const m = monthValue || document.getElementById("excelMonth").value;
     
     if (!m) {
-        // ถ้ายังไม่ได้เลือกเดือน ให้สั่งเปิดตัวเลือกเดือนขึ้นมาเลย
         alert("กรุณาเลือกเดือนที่ต้องการส่งออกก่อนครับ");
-        monthInput.showPicker(); 
         return;
     }
 
-    if (typeof archives === 'undefined' || !archives.length) {
+    if (typeof archives === 'undefined' || !archives || !archives.length) {
         alert("ไม่พบข้อมูลประวัติ");
         return;
     }
 
-    // กรองข้อมูล (ส่วนที่เหลือเหมือนเดิม)
     const filtered = archives.filter(a => a.date && a.date.startsWith(m));
-    
     if (!filtered.length) {
         alert(`ไม่พบข้อมูลของเดือน ${m}`);
         return;
     }
 
     let csvContent = "\uFEFF"; 
-    csvContent += "วันที่,ประเภทวัน,ยอดรวม (บาท),ส่วนแบ่งช่าง,รายได้ร้าน,รวมลูกค้า (คน),ลูกค้าใหม่,ลูกค้าประจำ,รายการที่ให้บริการ\n";
+    // 1. หัวข้อคอลัมน์ตามที่คุณต้องการ
+    csvContent += "วันที่,วัน,ลูกค้า(คน),ยอดช่าง,โกนหนวด,สระผม,ย้อมผม/เคมี,รายการอื่นๆ\n";
+
+    const dayNames = ["อาทิตย์", "จันทร์", "อังคาร", "พุธ", "พฤหัสบดี", "ศุกร์", "เสาร์"];
 
     filtered.forEach(day => {
-        const isOff = (day.off === true || day.type === "HOLIDAY");
-        const typeDay = isOff ? "วันหยุด" : "วันทำงาน";
-        let totalCustomers = 0, cNew = 0, cReg = 0, serviceList = [];
+        const dObj = new Date(day.date);
+        const dayName = dayNames[dObj.getDay()];
+
+        let totalCust = 0;
+        let countShave = 0; // โกน
+        let countWash = 0;  // สระ
+        let countDye = 0;   // ย้อม
+        let otherSvcs = [];
 
         if (day.details && Array.isArray(day.details)) {
             day.details.forEach(d => {
                 if (d.type === "SERVICE") {
-                    totalCustomers++;
-                    const type = String(d.custType || "").toLowerCase().trim();
-                    if (type === "new") cNew++;
-                    else if (type === "regular") cReg++;
-                    if (d.svcs) {
-                        const s = Array.isArray(d.svcs) ? d.svcs.join("/") : d.svcs;
-                        serviceList.push(s);
-                    }
+                    totalCust++;
+                    const svcs = Array.isArray(d.svcs) ? d.svcs : [d.svcs];
+                    
+                    svcs.forEach(s => {
+                        if (!s) return;
+                        const text = s.trim();
+                        
+                        // เช็กคำจากปุ่มส่งงาน (ปรับคำค้นหาได้ที่นี่)
+                        if (text.includes("โกน") || text.includes("กันหน้า")) {
+                            countShave++;
+                        } else if (text.includes("สระ")) {
+                            countWash++;
+                        } else if (text.includes("ย้อม") || text.includes("สี") || text.includes("ดัด") || text.includes("เคมี")) {
+                            countDye++;
+                        } else {
+                            if (!otherSvcs.includes(text)) otherSvcs.push(text);
+                        }
+                    });
                 }
             });
         }
-        const servicesText = serviceList.length > 0 ? `"${serviceList.join(" | ")}"` : "-";
-        const shopEarn = (Number(day.total) || 0) - (Number(day.barber) || 0);
 
-        const row = [day.date, typeDay, Number(day.total) || 0, Number(day.barber) || 0, shopEarn, totalCustomers, cNew, cReg, servicesText].join(",");
+        // 2. เรียงข้อมูลลงแถว (ยอดช่างใช้ตัวเลขจริงจากระบบ)
+        const row = [
+            day.date,
+            dayName,
+            totalCust,
+            Number(day.barber) || 0,
+            countShave,
+            countWash,
+            countDye,
+            `"${otherSvcs.join(" | ")}"`
+        ].join(",");
+        
         csvContent += row + "\n";
     });
 
+    // 3. กระบวนการสร้างไฟล์
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
-    link.setAttribute("download", `รายงาน_Barber_${m}.csv`);
+    link.setAttribute("download", `รายงานรายละเอียด_${m}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
