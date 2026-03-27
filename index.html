@@ -10,11 +10,12 @@
     <meta name="apple-mobile-web-app-title" content="Barber-MS">
     <link rel="apple-touch-icon" href="https://i.ibb.co/9mmX3c3R/Barber-Management-Icon.png">
     <link rel="icon" type="image/png" href="https://i.ibb.co/9mmX3c3R/Barber-Management-Icon.png">
-    <title>Barber-Management-System 2</title>
+    <title>Barber-Management-System </title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
     <script src="script.js" defer></script>
 </head>
 <body>
@@ -700,8 +701,8 @@ nav {
                     <button onclick="document.getElementById('modalSet').style.display='none'" style="background:var(--bg); color:var(--text); opacity:0.7; height:60px; border-radius:20px; border:none; font-weight:800; font-size:16px;">ปิด</button>
                 </div>
                 <div style="text-align:center; line-height: 1.4; opacity: 0.5;">
-                    <div style="font-size:10px; color:var(--text); font-weight:600;">V.1.0.2</div>
-                    <div style="font-size:9px; color:var(--text); font-weight:400;">Update: 09/03/2026</div>
+                    <div style="font-size:10px; color:var(--text); font-weight:600;">V.1.0.3</div>
+                    <div style="font-size:9px; color:var(--text); font-weight:400;">Update: 27/03/2026</div>
                 </div>
             </div>
         </div>
@@ -738,8 +739,8 @@ nav {
    ========================================================== */
 const $ = (id) => document.getElementById(id);
 // 1. ตั้งค่าเลขเวอร์ชันและวันที่
-const APP_VERSION = "1.0.2"; 
-const LAST_UPDATED = "09/03/2026"; 
+const APP_VERSION = "1.0.3"; 
+const LAST_UPDATED = "27/03/2026"; 
 // 2. ระบบอัปเดตอัตโนมัติ (ใส่ไว้ตรงนี้เพื่อให้ทำงานทันทีที่โหลดสคริปต์)
 (function autoUpdate() {
     const currentStoredVersion = localStorage.getItem("app_v");
@@ -2167,113 +2168,66 @@ async function exportToExcel() {
     const monthInput = document.getElementById("histMonth");
     const m = monthInput ? monthInput.value : "";
     
-    // 1. ตรวจสอบว่าเลือกเดือนหรือยัง
     if (!m) {
-        // แจ้งเตือนก่อน
-        alert("กรุณาเลือกเดือนที่ต้องการส่งออกก่อนครับ");
-        
-        // หน่วงเวลา 300ms เพื่อให้หน้าต่าง Alert ปิดสนิทก่อนเรียกตัวเลือกเดือน (แก้ปัญหาเด้งซ้อน)
-        setTimeout(() => {
-            if (monthInput && typeof monthInput.showPicker === 'function') {
-                monthInput.showPicker();
-            }
-        }, 300);
+        alert("⚠️ กรุณาเลือกเดือนก่อนครับ");
+        if (monthInput && monthInput.showPicker) monthInput.showPicker();
         return;
     }
 
-    // 2. กรองข้อมูลจาก archives
     const filtered = archives.filter(a => a.date && a.date.startsWith(m));
-    if (!filtered.length) {
-        alert(`ไม่พบข้อมูลของเดือน ${m}`);
-        return;
-    }
+    if (!filtered.length) return alert(`❌ ไม่พบข้อมูลของเดือน ${m}`);
 
-    // --- 🎨 กำหนดสไตล์ของตาราง (CSS) ปรับปรุงให้อ่านง่ายบนมือถือ ---
-    const style = `
-        <style>
-            table { border-collapse: collapse; width: 100%; font-family: 'Tahoma', sans-serif; font-size: 14px; }
-            th, td { border: 1px solid #ddd; padding: 12px 8px; text-align: center; }
-            th { background-color: #1D6F42; color: white; font-weight: bold; white-space: nowrap; }
-            tr:nth-child(even) { background-color: #f9f9f9; }
-            .date-col { width: 100px; white-space: nowrap; }
-            .note-col { text-align: left; min-width: 200px; color: #555; font-size: 12px; line-height: 1.4; }
-            .money { font-weight: bold; color: #2c3e50; }
-            h3 { color: #1D6F42; font-family: sans-serif; }
-        </style>
-    `;
-
-    // --- 🏗️ สร้างเนื้อหาตาราง HTML ---
-    let tableHtml = `<html><head><meta charset="utf-8">${style}</head><body>`;
-    tableHtml += `<h3>รายงานรายเดือน: ${m}</h3>`;
-    tableHtml += `<table>
-        <thead>
-            <tr>
-                <th class="date-col">วันที่</th>
-                <th>ประเภท</th>
-                <th>รวม (฿)</th>
-                <th>ช่าง (฿)</th>
-                <th>ร้าน (฿)</th>
-                <th>ลูกค้า</th>
-                <th class="note-col">รายการบริการ / หมายเหตุ</th>
-            </tr>
-        </thead>
-        <tbody>`;
-
-    filtered.forEach(day => {
-        const isOff = (day.off === true || day.type === "HOLIDAY");
-        const typeDay = isOff ? "หยุด" : "ทำงาน";
-        let totalCustomers = 0, serviceList = [];
-
+    // 1. แปลงข้อมูล archives ให้เป็นรูปแบบที่ Excel เข้าใจ (JSON)
+    const dataForExcel = filtered.map(day => {
+        let totalCust = 0, cNew = 0, cReg = 0, services = [];
+        
         if (day.details && Array.isArray(day.details)) {
             day.details.forEach(d => {
                 if (d.type === "SERVICE") {
-                    totalCustomers++;
-                    if (d.svcs) {
-                        const s = Array.isArray(d.svcs) ? d.svcs.join(", ") : d.svcs;
-                        serviceList.push(s);
-                    }
+                    totalCust++;
+                    if (d.custType === "new") cNew++;
+                    else if (d.custType === "regular") cReg++;
+                    if (d.svcs) services.push(Array.isArray(d.svcs) ? d.svcs.join("/") : d.svcs);
                 }
             });
         }
-        
-        const shopEarn = (Number(day.total) || 0) - (Number(day.barber) || 0);
-        const servicesText = serviceList.length > 0 ? serviceList.join(" | ") : (day.note || "-");
 
-        tableHtml += `
-            <tr>
-                <td class="date-col">${day.date}</td>
-                <td style="color: ${isOff ? '#e74c3c' : '#27ae60'}">${typeDay}</td>
-                <td class="money">${Number(day.total).toLocaleString()}</td>
-                <td>${Number(day.barber).toLocaleString()}</td>
-                <td class="money" style="color: #2980b9">${shopEarn.toLocaleString()}</td>
-                <td>${totalCustomers}</td>
-                <td class="note-col">${servicesText}</td>
-            </tr>`;
+        return {
+            "วันที่": day.date,
+            "สถานะ": (day.off === true || day.type === "HOLIDAY") ? "หยุด" : "ทำงาน",
+            "ยอดรวม (฿)": Number(day.total) || 0,
+            "ส่วนแบ่งช่าง (฿)": Number(day.barber) || 0,
+            "รายได้ร้าน (฿)": (Number(day.total) || 0) - (Number(day.barber) || 0),
+            "จำนวนลูกค้า": totalCust,
+            "ลูกค้าใหม่": cNew,
+            "ลูกค้าประจำ": cReg,
+            "รายการบริการ": services.join(" | ") || day.note || "-"
+        };
     });
 
-    // เพิ่มแถวสรุปท้ายตารางให้ดูง่ายขึ้น
-    const totalM = filtered.reduce((s, a) => s + (Number(a.total) || 0), 0);
-    const barberM = filtered.reduce((s, a) => s + (Number(a.barber) || 0), 0);
-    tableHtml += `
-        <tr style="background: #eee; font-weight: bold;">
-            <td colspan="2">ยอดรวมทั้งเดือน</td>
-            <td>${totalM.toLocaleString()}</td>
-            <td>${barberM.toLocaleString()}</td>
-            <td style="color: #2980b9">${(totalM - barberM).toLocaleString()}</td>
-            <td colspan="2"></td>
-        </tr>`;
+    // 2. สร้าง Workbook และ Worksheet
+    const worksheet = XLSX.utils.json_to_sheet(dataForExcel);
+    const workbook = XLSX.utils.book_new();
+    
+    // 3. ปรับแต่งความกว้างคอลัมน์ (ตัวเลขคือจำนวนตัวอักษร)
+    const wscols = [
+        { wch: 12 }, // วันที่
+        { wch: 8 },  // สถานะ
+        { wch: 12 }, // ยอดรวม
+        { wch: 12 }, // ช่าง
+        { wch: 12 }, // ร้าน
+        { wch: 10 }, // ลูกค้า
+        { wch: 8 },  // ใหม่
+        { wch: 8 },  // ประจำ
+        { wch: 40 }  // รายการบริการ
+    ];
+    worksheet['!cols'] = wscols;
 
-    tableHtml += `</tbody></table></body></html>`;
+    XLSX.utils.book_append_sheet(workbook, worksheet, "รายได้ประจำเดือน");
 
-    // --- 📥 สั่งดาวน์โหลด ---
-    const blob = new Blob([tableHtml], { type: 'application/vnd.ms-excel' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `Report_Barber_${m}.xls`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    // 4. สั่งดาวน์โหลดไฟล์
+    const fileName = `Barber_Report_${m}.xlsx`;
+    XLSX.writeFile(workbook, fileName);
 }
 function loadHistDaily() {
     const d = $("histDate").value;
