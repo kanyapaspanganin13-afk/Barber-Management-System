@@ -627,17 +627,19 @@ nav {
                     <i class="fas fa-history"></i> ประวัติเคลียร์เงิน
                 </button>
             </div>
-                <div onclick="this.querySelector('#excelMonth').showPicker()" class="btn-excel" style="background: #1D6F42; color: white; border-radius:18px; padding:15px 5px; text-align:center; cursor:pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.1); display: flex; flex-direction: column; align-items: center; justify-content: center; transition: 0.3s; position: relative;">
-                    <i class="fas fa-file-excel" style="font-size:22px; margin-bottom:5px;"></i>
-                    <b style="font-size:14px;">รายงานรายเดือน </b>
-                    <input type="month" id="excelMonth" onchange="exportToExcel(this.value)" style="position:absolute; inset:0; opacity:0; cursor:pointer;">
-                </div>                
-                <div onclick="document.getElementById('histMonth').showPicker()" class="btn-monthly" style="border-radius:18px; padding:15px 5px; text-align:center; position:relative; box-shadow:0 8px 20px rgba(0,0,0,0.15); cursor:pointer; transition: 0.3s; display: flex; flex-direction: column; align-items: center; justify-content: center; margin-top: 0 !important; margin-bottom: 0 !important;">
-                    <i class="fas fa-calendar-check" style="font-size:22px; margin-bottom:5px; display:block;"></i>
-                    <b style="font-size:14px;">สรุปภาพรวม</b>
-                    <input type="month" id="histMonth" onchange="loadHistMonth()" style="position:absolute; inset:0; opacity:0; width:100%; height:100%; cursor:pointer;">
-                </div>    
-            </div> 
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px; margin-bottom: 12px;">
+            <div onclick="this.querySelector('#excelMonth').showPicker()" class="btn-excel" style="background: #1D6F42; color: white; border-radius:18px; padding:15px 5px; text-align:center; cursor:pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.1); display: flex; flex-direction: column; align-items: center; justify-content: center; transition: 0.3s; position: relative;">
+                <i class="fas fa-file-excel" style="font-size:22px; margin-bottom:5px;"></i>
+                <b style="font-size:14px;">รายงานรายเดือน</b>
+                <input type="month" id="excelMonth" onchange="exportToExcel(this.value)" style="position:absolute; inset:0; opacity:0; cursor:pointer;">
+            </div>                
+            
+            <div onclick="document.getElementById('histMonth').showPicker()" class="btn-monthly" style="background: #3b82f6; color: white; border-radius:18px; padding:15px 5px; text-align:center; position:relative; box-shadow:0 8px 20px rgba(0,0,0,0.15); cursor:pointer; transition: 0.3s; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+                <i class="fas fa-calendar-check" style="font-size:22px; margin-bottom:5px;"></i>
+                <b style="font-size:14px;">สรุปภาพรวม</b>
+                <input type="month" id="histMonth" onchange="loadHistMonth()" style="position:absolute; inset:0; opacity:0; width:100%; height:100%; cursor:pointer;">
+            </div>    
+        </div>
             <div onclick="openComparisonSelector()" class="btn-compare" style="border-radius: 25px; padding: 15px; text-align: center; cursor: pointer; box-shadow: 0 8px 15px rgba(0,0,0,0.1); display: flex; align-items: center; justify-content: center; gap: 10px;">         
                 <i class="fas fa-chart-line" style="font-size: 24px;"></i>
                 <b style="font-size: 16px;">เปรียบเทียบช่วงวันที่</b>
