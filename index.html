@@ -2180,21 +2180,19 @@ function exportToExcel() {
         alert(`ไม่พบข้อมูลของเดือน ${parseInt(mm)}/${parseInt(y)+543}`);
         return;
     }
-
     // 🇹🇭 รายชื่อเดือนไทยแบบย่อ
     const thMonths = ["", "ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
-
     // --- 🎨 CSS ปรับปรุงใหม่ (ตัวหนังสือใหญ่พิเศษ) ---
     const style = `
         <style>
             body { padding: 20px; font-family: 'Tahoma', sans-serif; }
-            table { border-collapse: collapse; width: 100%; margin-top: 20px; }
+            table { border-collapse: collapse; width: 100%; margin-top: 30px; }
             /* หัวตารางตัวหนาและใหญ่ */
             th { border: 2px solid #ccc; padding: 15px 5px; background-color: #1D6F42; color: white; font-size: 20px; white-space: nowrap; }
             /* ตัวหนังสือในตารางขยายเป็น 18px */
-            td { border: 2px solid #ccc; padding: 18px 10px; text-align: center; font-size: 18px; font-weight: 500; }
+            td { border: 2px solid #ccc; padding: 18px 10px; text-align: center; font-size: 25px; font-weight: 500; }
             tr:nth-child(even) { background-color: #f2f2f2; }
-            .t-foot { background-color: #ffd54f; font-weight: bold; font-size: 20px; }
+            .t-foot { background-color: #ffd54f; font-weight: bold; font-size: 25px; }
             .text-red { color: #e74c3c; font-weight: bold; }
             
             /* 🔴 ปุ่มปิดไฟล์สำหรับมือถือ */
@@ -2205,18 +2203,16 @@ function exportToExcel() {
             }
         </style>
     `;
-
     // --- 🏗️ เริ่มสร้าง HTML ---
-    let tableHtml = `<html><head><meta charset="utf-8">${style}</head><body>`;
-    
+    let tableHtml = `<html><head><meta charset="utf-8">${style}</head><body>`; 
     // เพิ่มปุ่มปิดที่ด้านบน (สำหรับเวลาเปิดดูใน Browser มือถือ)
     tableHtml += `<a href="javascript:window.close();" class="btn-close-report" onclick="window.history.back();">❌ ปิดหน้ารายงานนี้</a>`;
     
-    tableHtml += `<h2 style="text-align:center;">รายงานสรุปเดือน: ${m}</h2>`;
+    tableHtml += `<h2 style="text-align:center;">รายงานประจำเดือน: ${m}</h2>`;
     tableHtml += `<table>
         <thead>
             <tr>
-                <th>วันที่ไทย</th>
+                <th>วันที่</th>
                 <th>วัน</th>
                 <th>ลูกค้า</th>
                 <th>ยอดช่าง</th>
