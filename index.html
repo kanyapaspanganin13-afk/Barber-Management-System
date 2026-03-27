@@ -2176,7 +2176,6 @@ async function exportToExcel() {
     } catch (e) {
         console.log("Fetch error:", e);
     }
-
     // 🏷️ 2. ดึงชื่อร้าน (ดึงจากจุดที่คุณใช้ใน saveSettings)
     // ลำดับ: จากช่อง Input > จาก LocalStorage (shopName) > จากตัวแปรกลาง (conf.shop) > ค่าเริ่มต้น
     const shopInput = document.getElementById("setShop");
@@ -2191,7 +2190,6 @@ async function exportToExcel() {
         alert("ไม่พบข้อมูลประวัติในระบบ กรุณาลองใหม่อีกครั้ง");
         return;
     }
-
     const monthInput = document.getElementById("histMonth");
     const m = monthInput ? monthInput.value : "";
     
@@ -2219,9 +2217,9 @@ async function exportToExcel() {
             body { padding: 20px; font-family: 'Tahoma', sans-serif; text-align: center; }
             table { border-collapse: collapse; width: 100%; margin-top: 20px; }
             th { border: 2px solid #ccc; padding: 15px 5px; background-color: #1D6F42; color: white; font-size: 30px; white-space: nowrap; }
-            td { border: 2px solid #ccc; padding: 12px 10px; text-align: center; font-size: 25px; font-weight: 500; color: #000; }
+            td { border: 2px solid #ccc; padding: 8px 10px; text-align: center; font-size: 25px; font-weight: 500; color: #000; }
             tr:nth-child(even) { background-color: #f2f2f2; }
-            h1 { text-align:center; font-size: 42px; margin-bottom: 5px; color: #1D6F42; }
+            h1 { text-align:center; font-size: 38px; margin-bottom: 5px; color: #04167d; }
             h2 { text-align:center; font-size: 32px; margin-bottom: 25px; color: #333; }
         </style>
     `;
@@ -2282,7 +2280,7 @@ async function exportToExcel() {
                 <td style="white-space:nowrap;">${dateThai}</td>
                 <td>${displayDay}</td>
                 <td>${countCust}</td>
-                <td style="color:#1b5e20;">${barberEarn.toLocaleString()}</td>
+                <td style="color:#0f0661;">${barberEarn.toLocaleString()}</td>
                 <td>${countShave || "-"}</td>
                 <td>${countWash || "-"}</td>
                 <td>${countDye || "-"}</td>
@@ -2290,8 +2288,8 @@ async function exportToExcel() {
     });
 
     tableHtml += `
-        <tr style="background-color: #ffd54f; font-weight: bold; font-size: 28px;">
-            <td colspan="2" style="border: 2px solid #ccc; padding: 15px;">รวมทั้งสิ้น</td>
+        <tr style="background-color: #fcea23; font-weight: bold; font-size: 28px;">
+            <td colspan="2" style="border: 2px solid #ccc; padding: 15px;">รวมยอด</td>
             <td style="border: 2px solid #ccc;">${grandTotalCust.toLocaleString()}</td>
             <td style="border: 2px solid #ccc;">${grandTotalBarber.toLocaleString()}</td>
             <td style="border: 2px solid #ccc;">${grandTotalShave}</td>
