@@ -2164,18 +2164,16 @@ function renderHistoryList() {
    (ส่วนสถิติ รายงาน และการส่งข้อมูลเข้า LINE)
    ========================================================== */
 function exportToExcel() {
-    // 1. ตรวจสอบช่องเลือกเดือน
     const monthInput = document.getElementById("histMonth");
     const m = monthInput ? monthInput.value : "";
     
     if (!m) {
-        // ใช้ notify แทน alert แบบเดิม
-        notify('warning', 'กรุณาเลือกเดือน', 'เลือกเดือนที่ต้องการส่งออกก่อน');
+        notify('warning', 'กรุณาเลือกเดือน', 'เลือกเดือนที่ต้องการส่งออกก่อนครับ');
         setTimeout(() => { if(monthInput.showPicker) monthInput.showPicker(); }, 1200);
         return;
     }
 
-    // มั่นใจว่ามีข้อมูล archives
+    // ดึงข้อมูลสำรองจาก localStorage กรณีตัวแปรในแอปว่าง
     const localData = (typeof archives !== 'undefined' && archives.length > 0) 
                       ? archives 
                       : JSON.parse(localStorage.getItem("barber_archives")) || [];
@@ -2187,41 +2185,14 @@ function exportToExcel() {
         return;
     }
 
-    // แจ้งเตือนเริ่มต้นการทำงาน
-    notify('success', 'กำลังเตรียมไฟล์', 'ระบบกำลังจัดรูปแบบตาราง');
+    notify('success', 'กำลังเตรียมไฟล์', 'ระบบกำลังส่งออกไฟล์รายงาน CSV ครับ');
 
-    // --- 🎨 ส่วนที่ 1: กำหนดสไตล์ตารางให้พอดีกับมือถือ (Responsive) ---
-    const style = `
-        <style>
-            @import url('https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;700&display=swap');
-            table { border-collapse: collapse; width: 100%; font-family: 'Kanit', Tahoma, sans-serif; font-size: 13px; }
-            th, td { border: 1px solid #e2e8f0; padding: 10px 5px; text-align: center; }
-            th { background-color: #1e293b; color: #ffffff; font-weight: bold; white-space: nowrap; }
-            tr:nth-child(even) { background-color: #f8fafc; }
-            .date-col { width: 90px; font-weight: bold; }
-            .money { font-weight: bold; color: #0f172a; white-space: nowrap; }
-            .shop-cell { color: #38bdf8; font-weight: 800; }
-            .service-col { text-align: left; min-width: 180px; font-size: 11px; color: #475569; }
-            h3 { font-family: 'Kanit', sans-serif; color: #1e293b; margin-bottom: 10px; }
-        </style>
-    `;
-
-    // --- 🏗️ ส่วนที่ 2: สร้างเนื้อหาตาราง (HTML Table) ---
-    let tableHtml = `<html><head><meta charset="utf-8">${style}</head><body>`;
-    tableHtml += `<h3>📊 รายงานรายเดือน: ${m}</h3>`;
-    tableHtml += `<table>
-        <thead>
-            <tr>
-                <th class="date-col">วันที่</th>
-                <th>ประเภท</th>
-                <th>รวม (฿)</th>
-                <th>ช่าง (฿)</th>
-                <th style="background:#0c4a6e">ร้าน (฿)</th>
-                <th>ลูกค้า (คน)</th>
-                <th class="service-col">รายการบริการ / หมายเหตุ</th>
-            </tr>
-        </thead>
-        <tbody>`;
+    // --- 🏗️ สร้างเนื้อหาแบบ CSV (มาตรฐานที่เปิดได้ทุกเครื่อง) ---
+    // \uFEFF คือรหัสที่บอก Excel ว่า "นี่คือภาษาไทยนะ อย่าให้ตัวหนังสือต่างดาว"
+    let csvContent = "\uFEFF"; 
+    
+    // หัวตาราง
+    csvContent += "วันที่,ประเภทวัน,ยอดรวม(บาท),ส่วนแบ่งช่าง(บาท),รายได้ร้าน(บาท),จำนวนลูกค้า(คน),รายการบริการและหมายเหตุ\n";
 
     filtered.forEach(day => {
         const isOff = (day.off === true || day.type === "HOLIDAY");
@@ -2233,7 +2204,7 @@ function exportToExcel() {
                 if (d.type === "SERVICE") {
                     totalCustomers++;
                     if (d.svcs) {
-                        const s = Array.isArray(d.svcs) ? d.svcs.join(", ") : d.svcs;
+                        const s = Array.isArray(d.svcs) ? d.svcs.join("/") : d.svcs;
                         serviceList.push(s);
                     }
                 }
@@ -2241,32 +2212,42 @@ function exportToExcel() {
         }
         
         const shopEarn = (Number(day.total) || 0) - (Number(day.barber) || 0);
-        const servicesText = serviceList.length > 0 ? serviceList.join(" | ") : (day.note || "-");
+        
+        // ตกแต่งข้อความบริการ: ใช้ " " ครอบไว้เพื่อป้องกันเครื่องหมายคอมม่าทำตารางเบี้ยว
+        const servicesText = serviceList.length > 0 
+            ? `"${serviceList.join(" | ")}"` 
+            : `"${day.note || "-"}"`;
 
-        tableHtml += `
-            <tr>
-                <td class="date-col">${day.date}</td>
-                <td style="color: ${isOff ? '#f43f5e' : '#10b981'}; font-weight:bold;">${typeDay}</td>
-                <td class="money">${Number(day.total).toLocaleString()}</td>
-                <td class="money" style="color:#64748b">${Number(day.barber).toLocaleString()}</td>
-                <td class="money shop-cell">${shopEarn.toLocaleString()}</td>
-                <td style="font-weight:bold;">${totalCustomers}</td>
-                <td class="service-col">${servicesText}</td>
-            </tr>`;
+        const row = [
+            day.date,
+            typeDay,
+            day.total || 0,
+            day.barber || 0,
+            shopEarn,
+            totalCustomers,
+            servicesText
+        ].join(",");
+
+        csvContent += row + "\n";
     });
 
-    tableHtml += `</tbody></table></body></html>`;
-
-    // --- 📥 ส่วนที่ 3: สั่งดาวน์โหลดเป็นไฟล์ .xls (Excel) ---
-    // ใช้ Blob และนามสกุล .xls เพื่อรักษา Style และ Font
-    const blob = new Blob([tableHtml], { type: 'application/vnd.ms-excel' });
+    // --- 📥 ขั้นตอนการดาวน์โหลดที่รองรับมือถือ ---
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
+    
     link.href = url;
-    link.download = `Report_Barber_${m}.xls`; 
+    link.setAttribute("download", `Report_Barber_${m}.csv`); // ใช้ .csv จะเปิดง่ายกว่า .xls
+    link.style.display = 'none';
+    
     document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    link.click(); // สั่งคลิกเพื่อโหลด
+    
+    // ล้างหน่วยความจำหลังโหลดเสร็จ
+    setTimeout(() => {
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    }, 100);
 }
 function loadHistDaily() {
     const d = $("histDate").value;
