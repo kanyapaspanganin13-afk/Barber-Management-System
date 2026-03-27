@@ -2163,65 +2163,114 @@ function renderHistoryList() {
    SECTION 7: ANALYTICS, REPORTS & SHARING
    (ส่วนสถิติ รายงาน และการส่งข้อมูลเข้า LINE)
    ========================================================== */
-function exportToExcel() {
-    // แก้จุดนี้: ให้ไปดึงค่าจาก id "histMonth" ซึ่งอยู่ในปุ่มสรุปรายเดือน
+async function exportToExcel() {
     const monthInput = document.getElementById("histMonth");
     const m = monthInput ? monthInput.value : "";
     
+    // 1. ตรวจสอบว่าเลือกเดือนหรือยัง
     if (!m) {
-        // ถ้ายังไม่ได้เลือกเดือน ให้สั่งเปิดตัวเลือกเดือนขึ้นมาเลย
-        alert("กรุณาเลือกเดือนที่ต้องการส่งออกก่อน");
-        monthInput.showPicker(); 
+        // แจ้งเตือนก่อน
+        alert("กรุณาเลือกเดือนที่ต้องการส่งออกก่อนครับ");
+        
+        // หน่วงเวลา 300ms เพื่อให้หน้าต่าง Alert ปิดสนิทก่อนเรียกตัวเลือกเดือน (แก้ปัญหาเด้งซ้อน)
+        setTimeout(() => {
+            if (monthInput && typeof monthInput.showPicker === 'function') {
+                monthInput.showPicker();
+            }
+        }, 300);
         return;
     }
 
-    if (typeof archives === 'undefined' || !archives.length) {
-        alert("ไม่พบข้อมูลประวัติ");
-        return;
-    }
-
-    // กรองข้อมูล (ส่วนที่เหลือเหมือนเดิม)
+    // 2. กรองข้อมูลจาก archives
     const filtered = archives.filter(a => a.date && a.date.startsWith(m));
-    
     if (!filtered.length) {
         alert(`ไม่พบข้อมูลของเดือน ${m}`);
         return;
     }
 
-    let csvContent = "\uFEFF"; 
-    csvContent += "วันที่,ประเภทวัน,ยอดรวม (บาท),ส่วนแบ่งช่าง,รายได้ร้าน,รวมลูกค้า (คน),ลูกค้าใหม่,ลูกค้าประจำ,รายการที่ให้บริการ\n";
+    // --- 🎨 กำหนดสไตล์ของตาราง (CSS) ปรับปรุงให้อ่านง่ายบนมือถือ ---
+    const style = `
+        <style>
+            table { border-collapse: collapse; width: 100%; font-family: 'Tahoma', sans-serif; font-size: 14px; }
+            th, td { border: 1px solid #ddd; padding: 12px 8px; text-align: center; }
+            th { background-color: #1D6F42; color: white; font-weight: bold; white-space: nowrap; }
+            tr:nth-child(even) { background-color: #f9f9f9; }
+            .date-col { width: 100px; white-space: nowrap; }
+            .note-col { text-align: left; min-width: 200px; color: #555; font-size: 12px; line-height: 1.4; }
+            .money { font-weight: bold; color: #2c3e50; }
+            h3 { color: #1D6F42; font-family: sans-serif; }
+        </style>
+    `;
+
+    // --- 🏗️ สร้างเนื้อหาตาราง HTML ---
+    let tableHtml = `<html><head><meta charset="utf-8">${style}</head><body>`;
+    tableHtml += `<h3>รายงานรายเดือน: ${m}</h3>`;
+    tableHtml += `<table>
+        <thead>
+            <tr>
+                <th class="date-col">วันที่</th>
+                <th>ประเภท</th>
+                <th>รวม (฿)</th>
+                <th>ช่าง (฿)</th>
+                <th>ร้าน (฿)</th>
+                <th>ลูกค้า</th>
+                <th class="note-col">รายการบริการ / หมายเหตุ</th>
+            </tr>
+        </thead>
+        <tbody>`;
 
     filtered.forEach(day => {
         const isOff = (day.off === true || day.type === "HOLIDAY");
-        const typeDay = isOff ? "วันหยุด" : "วันทำงาน";
-        let totalCustomers = 0, cNew = 0, cReg = 0, serviceList = [];
+        const typeDay = isOff ? "หยุด" : "ทำงาน";
+        let totalCustomers = 0, serviceList = [];
 
         if (day.details && Array.isArray(day.details)) {
             day.details.forEach(d => {
                 if (d.type === "SERVICE") {
                     totalCustomers++;
-                    const type = String(d.custType || "").toLowerCase().trim();
-                    if (type === "new") cNew++;
-                    else if (type === "regular") cReg++;
                     if (d.svcs) {
-                        const s = Array.isArray(d.svcs) ? d.svcs.join("/") : d.svcs;
+                        const s = Array.isArray(d.svcs) ? d.svcs.join(", ") : d.svcs;
                         serviceList.push(s);
                     }
                 }
             });
         }
-        const servicesText = serviceList.length > 0 ? `"${serviceList.join(" | ")}"` : "-";
+        
         const shopEarn = (Number(day.total) || 0) - (Number(day.barber) || 0);
+        const servicesText = serviceList.length > 0 ? serviceList.join(" | ") : (day.note || "-");
 
-        const row = [day.date, typeDay, Number(day.total) || 0, Number(day.barber) || 0, shopEarn, totalCustomers, cNew, cReg, servicesText].join(",");
-        csvContent += row + "\n";
+        tableHtml += `
+            <tr>
+                <td class="date-col">${day.date}</td>
+                <td style="color: ${isOff ? '#e74c3c' : '#27ae60'}">${typeDay}</td>
+                <td class="money">${Number(day.total).toLocaleString()}</td>
+                <td>${Number(day.barber).toLocaleString()}</td>
+                <td class="money" style="color: #2980b9">${shopEarn.toLocaleString()}</td>
+                <td>${totalCustomers}</td>
+                <td class="note-col">${servicesText}</td>
+            </tr>`;
     });
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    // เพิ่มแถวสรุปท้ายตารางให้ดูง่ายขึ้น
+    const totalM = filtered.reduce((s, a) => s + (Number(a.total) || 0), 0);
+    const barberM = filtered.reduce((s, a) => s + (Number(a.barber) || 0), 0);
+    tableHtml += `
+        <tr style="background: #eee; font-weight: bold;">
+            <td colspan="2">ยอดรวมทั้งเดือน</td>
+            <td>${totalM.toLocaleString()}</td>
+            <td>${barberM.toLocaleString()}</td>
+            <td style="color: #2980b9">${(totalM - barberM).toLocaleString()}</td>
+            <td colspan="2"></td>
+        </tr>`;
+
+    tableHtml += `</tbody></table></body></html>`;
+
+    // --- 📥 สั่งดาวน์โหลด ---
+    const blob = new Blob([tableHtml], { type: 'application/vnd.ms-excel' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", `รายงาน_Barber_${m}.csv`);
+    link.href = url;
+    link.download = `Report_Barber_${m}.xls`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
