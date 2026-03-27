@@ -2164,92 +2164,113 @@ function renderHistoryList() {
    SECTION 7: ANALYTICS, REPORTS & SHARING
    (ส่วนสถิติ รายงาน และการส่งข้อมูลเข้า LINE)
    ========================================================== */
-function exportToExcel() {
+async function exportToExcel() {
     const monthInput = document.getElementById("histMonth");
-    const m = monthInput ? monthInput.value : "";
     
-    if (!m) {
-        alert("กรุณาเลือกเดือนที่ต้องการส่งออกก่อนครับ");
-        monthInput.showPicker(); 
-        return;
-    }
+    // ฟังก์ชันย่อยสำหรับประมวลผล (สร้างเพื่อเรียกใช้ซ้ำได้)
+    const processData = () => {
+        const m = monthInput.value;
+        if (!m) return;
 
-    const filtered = archives.filter(a => a.date && a.date.startsWith(m));
-    if (!filtered.length) return alert(`ไม่พบข้อมูลของเดือน ${m}`);
+        const filtered = archives.filter(a => a.date && a.date.startsWith(m));
 
-    // --- 🎨 กำหนดสไตล์ของตาราง (CSS) ---
-    const style = `
-        <style>
-            table { border-collapse: collapse; width: 100%; font-family: 'Tahoma', sans-serif; font-size: 14px; }
-            th, td { border: 1px solid #ddd; padding: 12px 8px; text-align: center; }
-            th { background-color: #1D6F42; color: white; font-weight: bold; white-space: nowrap; }
-            tr:nth-child(even) { background-color: #f9f9f9; }
-            .date-col { width: 100px; }
-            .note-col { text-align: left; min-width: 150px; color: #555; font-size: 12px; }
-            .money { font-weight: bold; color: #2c3e50; }
-        </style>
-    `;
-
-    // --- 🏗️ สร้างเนื้อหาตาราง HTML ---
-    let tableHtml = `<html><head><meta charset="utf-8">${style}</head><body>`;
-    tableHtml += `<h3>รายงานรายเดือน: ${m}</h3>`;
-    tableHtml += `<table>
-        <thead>
-            <tr>
-                <th class="date-col">วันที่</th>
-                <th>ประเภท</th>
-                <th>รวม (฿)</th>
-                <th>ช่าง (฿)</th>
-                <th>ร้าน (฿)</th>
-                <th>ลูกค้า</th>
-                <th class="note-col">รายการบริการ / หมายเหตุ</th>
-            </tr>
-        </thead>
-        <tbody>`;
-
-    filtered.forEach(day => {
-        const isOff = (day.off === true || day.type === "HOLIDAY");
-        const typeDay = isOff ? "หยุด" : "ทำงาน";
-        let totalCustomers = 0, serviceList = [];
-
-        if (day.details && Array.isArray(day.details)) {
-            day.details.forEach(d => {
-                if (d.type === "SERVICE") {
-                    totalCustomers++;
-                    if (d.svcs) {
-                        const s = Array.isArray(d.svcs) ? d.svcs.join(", ") : d.svcs;
-                        serviceList.push(s);
-                    }
-                }
-            });
+        // 1. ตรวจสอบถ้าไม่พบข้อมูล
+        if (!filtered.length) {
+            const [year, month] = m.split('-');
+            const monthNames = ["", "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"];
+            const thaiLabel = `${monthNames[parseInt(month)]} ${parseInt(year) + 543}`;
+            
+            // แจ้งเตือนกรณีไม่มีข้อมูล (รองรับ SweetAlert2 ถ้าคุณมี)
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({ title: 'ไม่พบข้อมูล', text: `เดือน ${thaiLabel} ยังไม่มีการบันทึกครับ`, icon: 'info' });
+            } else {
+                alert(`ไม่พบข้อมูลของเดือน ${thaiLabel}`);
+            }
+            return;
         }
-        
-        const shopEarn = (Number(day.total) || 0) - (Number(day.barber) || 0);
-        const servicesText = serviceList.length > 0 ? serviceList.join(" | ") : (day.note || "-");
 
-        tableHtml += `
-            <tr>
-                <td>${day.date}</td>
-                <td style="color: ${isOff ? '#e74c3c' : '#27ae60'}">${typeDay}</td>
-                <td class="money">${Number(day.total).toLocaleString()}</td>
-                <td>${Number(day.barber).toLocaleString()}</td>
-                <td class="money" style="color: #2980b9">${shopEarn.toLocaleString()}</td>
-                <td>${totalCustomers}</td>
-                <td class="note-col">${servicesText}</td>
-            </tr>`;
-    });
+        // 2. ถ้ามีข้อมูล ให้สร้างตาราง HTML (CSS ปรับให้เหมาะสมกับมือถือ)
+        const style = `
+            <style>
+                table { border-collapse: collapse; width: 100%; font-family: 'Tahoma', sans-serif; font-size: 14px; }
+                th, td { border: 1px solid #ddd; padding: 12px 8px; text-align: center; }
+                th { background-color: #1D6F42; color: white; font-weight: bold; white-space: nowrap; }
+                tr:nth-child(even) { background-color: #f9f9f9; }
+                .note-col { text-align: left; min-width: 180px; color: #555; font-size: 12px; }
+                .money { font-weight: bold; color: #2c3e50; }
+            </style>
+        `;
 
-    tableHtml += `</tbody></table></body></html>`;
+        let tableHtml = `<html><head><meta charset="utf-8">${style}</head><body>`;
+        tableHtml += `<h3>รายงานรายเดือน: ${m}</h3>`;
+        tableHtml += `<table>
+            <thead>
+                <tr>
+                    <th>วันที่</th><th>ประเภท</th><th>รวม (฿)</th><th>ช่าง (฿)</th><th>ร้าน (฿)</th><th>ลูกค้า</th><th class="note-col">รายการ</th>
+                </tr>
+            </thead>
+            <tbody>`;
 
-    // --- 📥 สั่งดาวน์โหลดเป็นไฟล์ .xls (Excel) ---
-    const blob = new Blob([tableHtml], { type: 'application/vnd.ms-excel' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `Report_Barber_${m}.xls`; // นามสกุล .xls จะทำให้เปิดด้วย Excel แล้วเห็นสไตล์
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+        filtered.forEach(day => {
+            const isOff = (day.off === true || day.type === "HOLIDAY");
+            const typeDay = isOff ? "หยุด" : "ทำงาน";
+            let totalCustomers = 0, serviceList = [];
+
+            if (day.details && Array.isArray(day.details)) {
+                day.details.forEach(d => {
+                    if (d.type === "SERVICE") {
+                        totalCustomers++;
+                        if (d.svcs) serviceList.push(Array.isArray(d.svcs) ? d.svcs.join(", ") : d.svcs);
+                    }
+                });
+            }
+            
+            const shopEarn = (Number(day.total) || 0) - (Number(day.barber) || 0);
+            const servicesText = serviceList.length > 0 ? serviceList.join(" | ") : (day.note || "-");
+
+            tableHtml += `
+                <tr>
+                    <td>${day.date}</td>
+                    <td style="color: ${isOff ? '#e74c3c' : '#27ae60'}">${typeDay}</td>
+                    <td class="money">${Number(day.total).toLocaleString()}</td>
+                    <td>${Number(day.barber).toLocaleString()}</td>
+                    <td class="money" style="color: #2980b9">${shopEarn.toLocaleString()}</td>
+                    <td>${totalCustomers}</td>
+                    <td class="note-col">${servicesText}</td>
+                </tr>`;
+        });
+
+        tableHtml += `</tbody></table></body></html>`;
+
+        const blob = new Blob([tableHtml], { type: 'application/vnd.ms-excel' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `Report_Barber_${m}.xls`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
+    // --- ส่วนตรรกะการเรียกใช้ฟังก์ชัน (Logic) ---
+    
+    // ตั้งค่าให้ตรวจจับเมื่อเลือกเดือนเสร็จแล้วให้รันทันที
+    monthInput.onchange = () => {
+        processData();
+        monthInput.onchange = null; // ล้าง event เพื่อไม่ให้รันซ้ำซ้อน
+    };
+
+    if (!monthInput.value) {
+        // ถ้ายังไม่มีค่า ให้เปิดหน้าต่างเลือกเดือน
+        if (typeof monthInput.showPicker === 'function') {
+            monthInput.showPicker();
+        } else {
+            monthInput.focus();
+        }
+    } else {
+        // ถ้ามีค่าอยู่แล้ว (เช่นเลือกค้างไว้) ให้ประมวลผลเลย
+        processData();
+    }
 }
 function loadHistDaily() {
     const d = $("histDate").value;
