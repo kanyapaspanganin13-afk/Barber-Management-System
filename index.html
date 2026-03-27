@@ -2164,95 +2164,94 @@ function renderHistoryList() {
    SECTION 7: ANALYTICS, REPORTS & SHARING
    (ส่วนสถิติ รายงาน และการส่งข้อมูลเข้า LINE)
    ========================================================== */
-function exportToExcel() {
+async function exportToExcel() {
+    // เช็ค Library XLSX
+    if (typeof XLSX === 'undefined') {
+        Swal.fire('แจ้งเตือน', 'ระบบกำลังโหลดเครื่องมือ Excel... กรุณาลองใหม่ใน 2 วินาที', 'warning');
+        return;
+    }
+
     const monthInput = document.getElementById("histMonth");
     const m = monthInput ? monthInput.value : "";
     
     if (!m) {
-        Swal.fire({
-            title: 'กรุณาเลือกเดือน',
-            text: 'เลือกเดือนที่ต้องการดูรายงานก่อนครับ',
-            icon: 'warning',
-            confirmButtonText: 'ตกลง'
-        }).then(() => {
-            if (monthInput.showPicker) monthInput.showPicker();
-        });
+        Swal.fire('กรุณาเลือกเดือน', 'กรุณาระบุเดือนที่ต้องการส่งออกข้อมูล', 'warning')
+            .then(() => { if(monthInput.showPicker) monthInput.showPicker(); });
         return;
     }
 
     const filtered = archives.filter(a => a.date && a.date.startsWith(m));
     if (!filtered.length) {
-        Swal.fire('ไม่พบข้อมูล', `ไม่มีข้อมูลของเดือน ${m} ครับ`, 'info');
+        Swal.fire('ไม่พบข้อมูล', `ไม่มีประวัติการทำงานของเดือน ${m}`, 'info');
         return;
     }
 
-    // --- 🏗️ สร้างเนื้อหาตาราง HTML สำหรับ Pop-up ---
-    let tableHtml = `
-        <div style="overflow-x:auto; -webkit-overflow-scrolling:touch;">
-            <table style="width:100%; border-collapse:collapse; font-size:13px; font-family:sans-serif;">
-                <thead>
-                    <tr style="background:#1e293b; color:white;">
-                        <th style="padding:10px; border:1px solid #334155;">วันที่</th>
-                        <th style="padding:10px; border:1px solid #334155;">รวม (฿)</th>
-                        <th style="padding:10px; border:1px solid #334155;">ร้าน (฿)</th>
-                        <th style="padding:10px; border:1px solid #334155;">ลูกค้า</th>
-                    </tr>
-                </thead>
-                <tbody>
-    `;
+    try {
+        // เตรียมข้อมูล JSON สำหรับ Excel
+        const data = filtered.map(day => {
+            let totalCust = 0, services = [];
+            if (day.details && Array.isArray(day.details)) {
+                day.details.forEach(d => {
+                    if (d.type === "SERVICE") {
+                        totalCust++;
+                        if (d.svcs) services.push(Array.isArray(d.svcs) ? d.svcs.join("/") : d.svcs);
+                    }
+                });
+            }
+            return {
+                "วันที่": day.date,
+                "สถานะ": (day.off || day.type === "HOLIDAY") ? "หยุด" : "ทำงาน",
+                "ยอดรวม": Number(day.total) || 0,
+                "ส่วนแบ่งช่าง": Number(day.barber) || 0,
+                "รายได้ร้าน": (Number(day.total) || 0) - (Number(day.barber) || 0),
+                "จำนวนลูกค้า": totalCust,
+                "รายการบริการ": services.join(" | ") || day.note || "-"
+            };
+        });
 
-    let grandTotal = 0;
-    let shopTotal = 0;
-    let custTotal = 0;
+        // สร้าง Workbook
+        const ws = XLSX.utils.json_to_sheet(data);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
 
-    filtered.forEach(day => {
-        const isOff = (day.off || day.type === "HOLIDAY");
-        const shopEarn = (Number(day.total) || 0) - (Number(day.barber) || 0);
-        let dailyCust = 0;
-        
-        if (day.details) {
-            dailyCust = day.details.filter(d => d.type === "SERVICE").length;
+        // ตั้งค่าความกว้างคอลัมน์
+        ws['!cols'] = [{wch:12}, {wch:8}, {wch:12}, {wch:12}, {wch:12}, {wch:10}, {wch:40}];
+
+        // เขียนไฟล์เป็นสตรีมข้อมูล (สำคัญมากสำหรับมือถือ)
+        const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'binary' });
+
+        function s2ab(s) {
+            const buf = new ArrayBuffer(s.length);
+            const view = new Uint8Array(buf);
+            for (let i = 0; i < s.length; i++) view[i] = s.charCodeAt(i) & 0xFF;
+            return buf;
         }
 
-        grandTotal += (Number(day.total) || 0);
-        shopTotal += shopEarn;
-        custTotal += dailyCust;
+        const blob = new Blob([s2ab(wbout)], { type: "application/octet-stream" });
+        const fileName = `Report_Barber_${m}.xlsx`;
 
-        tableHtml += `
-            <tr style="background:${isOff ? '#fff1f2' : 'white'};">
-                <td style="padding:8px; border:1px solid #e2e8f0; font-weight:bold;">${day.date.split('-')[2]}</td>
-                <td style="padding:8px; border:1px solid #e2e8f0;">${Number(day.total).toLocaleString()}</td>
-                <td style="padding:8px; border:1px solid #e2e8f0; color:#0284c7; font-weight:bold;">${shopEarn.toLocaleString()}</td>
-                <td style="padding:8px; border:1px solid #e2e8f0;">${dailyCust}</td>
-            </tr>
-        `;
-    });
+        // บังคับดาวน์โหลด
+        if (navigator.msSaveBlob) {
+            navigator.msSaveBlob(blob, fileName);
+        } else {
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = fileName;
+            document.body.appendChild(a);
+            a.click();
+            setTimeout(() => {
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+            }, 100);
+        }
 
-    tableHtml += `
-                </tbody>
-                <tfoot>
-                    <tr style="background:#f8fafc; font-weight:bold;">
-                        <td style="padding:10px; border:1px solid #cbd5e1;">รวม</td>
-                        <td style="padding:10px; border:1px solid #cbd5e1;">${grandTotal.toLocaleString()}</td>
-                        <td style="padding:10px; border:1px solid #cbd5e1; color:#0284c7;">${shopTotal.toLocaleString()}</td>
-                        <td style="padding:10px; border:1px solid #cbd5e1;">${custTotal}</td>
-                    </tr>
-                </tfoot>
-            </table>
-        </div>
-        <p style="font-size:11px; color:#64748b; margin-top:10px; text-align:left;">* แถวสีชมพูคือวันหยุด/ประกัน</p>
-    `;
+        Swal.fire('สำเร็จ!', 'ดาวน์โหลดไฟล์เรียบร้อยแล้ว<br>เช็คได้ที่แอป "ไฟล์" หรือ "ดาวน์โหลด"', 'success');
 
-    // --- 🚀 แสดงผลผ่าน SweetAlert2 Pop-up ---
-    Swal.fire({
-        title: `📊 รายงานเดือน ${m}`,
-        html: tableHtml,
-        width: '95%',
-        padding: '10px',
-        showCloseButton: true,
-        confirmButtonText: 'ปิดหน้าต่าง',
-        confirmButtonColor: '#0f172a'
-    });
+    } catch (e) {
+        console.error(e);
+        Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถสร้างไฟล์ได้: ' + e.message, 'error');
+    }
 }
 function loadHistDaily() {
     const d = $("histDate").value;
