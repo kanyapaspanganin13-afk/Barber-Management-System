@@ -2164,45 +2164,51 @@ function renderHistoryList() {
    (ส่วนสถิติ รายงาน และการส่งข้อมูลเข้า LINE)
    ========================================================== */
 function exportToExcel() {
+    // 1. ตรวจสอบช่องเลือกเดือน
     const monthInput = document.getElementById("histMonth");
     const m = monthInput ? monthInput.value : "";
     
-    // 1. ตรวจสอบว่าเลือกเดือนหรือยัง
     if (!m) {
-        // เปลี่ยนจาก alert เป็น notify
+        // ใช้ notify แทน alert แบบเดิม
         notify('warning', 'กรุณาเลือกเดือน', 'เลือกเดือนที่ต้องการส่งออกก่อน');
-        setTimeout(() => { monthInput.showPicker(); }, 1200); // รอเสียงพูดแป๊บนึงแล้วค่อยเปิดที่เลือกเดือน
+        setTimeout(() => { if(monthInput.showPicker) monthInput.showPicker(); }, 1200);
         return;
     }
 
-    const filtered = archives.filter(a => a.date && a.date.startsWith(m));
+    // มั่นใจว่ามีข้อมูล archives
+    const localData = (typeof archives !== 'undefined' && archives.length > 0) 
+                      ? archives 
+                      : JSON.parse(localStorage.getItem("barber_archives")) || [];
+
+    const filtered = localData.filter(a => a.date && a.date.startsWith(m));
     
-    // 2. ตรวจสอบว่ามีข้อมูลไหม
     if (!filtered.length) {
-        // เปลี่ยนจาก alert เป็น notify
-        notify('error', 'ไม่พบข้อมูล', `ไม่พบข้อมูลประวัติของเดือน ${m}`);
+        notify('error', 'ไม่พบข้อมูล', `ไม่พบประวัติของเดือน ${m} ครับ`);
         return;
     }
 
-    // แจ้งเตือนเมื่อเริ่มดาวน์โหลด (แถมให้เพื่อความลื่นไหล)
-    notify('success', 'กำลังเตรียมไฟล์', 'ระบบกำลังส่งออกไฟล์ Excel');
+    // แจ้งเตือนเริ่มต้นการทำงาน
+    notify('success', 'กำลังเตรียมไฟล์', 'ระบบกำลังจัดรูปแบบตาราง');
 
-    // --- 🎨 กำหนดสไตล์ของตาราง (CSS) ---
+    // --- 🎨 ส่วนที่ 1: กำหนดสไตล์ตารางให้พอดีกับมือถือ (Responsive) ---
     const style = `
         <style>
-            table { border-collapse: collapse; width: 100%; font-family: 'Tahoma', sans-serif; font-size: 14px; }
-            th, td { border: 1px solid #ddd; padding: 12px 8px; text-align: center; }
-            th { background-color: #1D6F42; color: white; font-weight: bold; white-space: nowrap; }
-            tr:nth-child(even) { background-color: #f9f9f9; }
-            .date-col { width: 100px; }
-            .note-col { text-align: left; min-width: 150px; color: #555; font-size: 12px; }
-            .money { font-weight: bold; color: #2c3e50; }
+            @import url('https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;700&display=swap');
+            table { border-collapse: collapse; width: 100%; font-family: 'Kanit', Tahoma, sans-serif; font-size: 13px; }
+            th, td { border: 1px solid #e2e8f0; padding: 10px 5px; text-align: center; }
+            th { background-color: #1e293b; color: #ffffff; font-weight: bold; white-space: nowrap; }
+            tr:nth-child(even) { background-color: #f8fafc; }
+            .date-col { width: 90px; font-weight: bold; }
+            .money { font-weight: bold; color: #0f172a; white-space: nowrap; }
+            .shop-cell { color: #38bdf8; font-weight: 800; }
+            .service-col { text-align: left; min-width: 180px; font-size: 11px; color: #475569; }
+            h3 { font-family: 'Kanit', sans-serif; color: #1e293b; margin-bottom: 10px; }
         </style>
     `;
 
-    // --- 🏗️ สร้างเนื้อหาตาราง HTML ---
+    // --- 🏗️ ส่วนที่ 2: สร้างเนื้อหาตาราง (HTML Table) ---
     let tableHtml = `<html><head><meta charset="utf-8">${style}</head><body>`;
-    tableHtml += `<h3>รายงานรายเดือน: ${m}</h3>`;
+    tableHtml += `<h3>📊 รายงานรายเดือน: ${m}</h3>`;
     tableHtml += `<table>
         <thead>
             <tr>
@@ -2210,9 +2216,9 @@ function exportToExcel() {
                 <th>ประเภท</th>
                 <th>รวม (฿)</th>
                 <th>ช่าง (฿)</th>
-                <th>ร้าน (฿)</th>
-                <th>ลูกค้า</th>
-                <th class="note-col">รายการบริการ / หมายเหตุ</th>
+                <th style="background:#0c4a6e">ร้าน (฿)</th>
+                <th>ลูกค้า (คน)</th>
+                <th class="service-col">รายการบริการ / หมายเหตุ</th>
             </tr>
         </thead>
         <tbody>`;
@@ -2239,24 +2245,25 @@ function exportToExcel() {
 
         tableHtml += `
             <tr>
-                <td>${day.date}</td>
-                <td style="color: ${isOff ? '#e74c3c' : '#27ae60'}">${typeDay}</td>
+                <td class="date-col">${day.date}</td>
+                <td style="color: ${isOff ? '#f43f5e' : '#10b981'}; font-weight:bold;">${typeDay}</td>
                 <td class="money">${Number(day.total).toLocaleString()}</td>
-                <td>${Number(day.barber).toLocaleString()}</td>
-                <td class="money" style="color: #2980b9">${shopEarn.toLocaleString()}</td>
-                <td>${totalCustomers}</td>
-                <td class="note-col">${servicesText}</td>
+                <td class="money" style="color:#64748b">${Number(day.barber).toLocaleString()}</td>
+                <td class="money shop-cell">${shopEarn.toLocaleString()}</td>
+                <td style="font-weight:bold;">${totalCustomers}</td>
+                <td class="service-col">${servicesText}</td>
             </tr>`;
     });
 
     tableHtml += `</tbody></table></body></html>`;
 
-    // --- 📥 สั่งดาวน์โหลดเป็นไฟล์ .xls (Excel) ---
+    // --- 📥 ส่วนที่ 3: สั่งดาวน์โหลดเป็นไฟล์ .xls (Excel) ---
+    // ใช้ Blob และนามสกุล .xls เพื่อรักษา Style และ Font
     const blob = new Blob([tableHtml], { type: 'application/vnd.ms-excel' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `Report_Barber_${m}.xls`;
+    link.download = `Report_Barber_${m}.xls`; 
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
