@@ -2169,7 +2169,7 @@ function exportToExcel() {
     const m = monthInput ? monthInput.value : "";
     
     if (!m) {
-        alert("กรุณาเลือกเดือนที่ต้องการส่งออกก่อนครับ");
+        alert("กรุณาเลือกเดือนที่ต้องการส่งออก");
         if (monthInput.showPicker) monthInput.showPicker();
         return;
     }
@@ -2181,28 +2181,45 @@ function exportToExcel() {
         return;
     }
 
-    // --- 🎨 CSS สำหรับตารางบนมือถือ ---
+    // 🇹🇭 รายชื่อเดือนไทยแบบย่อ
+    const thMonths = ["", "ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
+
+    // --- 🎨 CSS ปรับปรุงใหม่ (ตัวหนังสือใหญ่พิเศษ) ---
     const style = `
         <style>
-            table { border-collapse: collapse; width: 100%; font-family: 'Tahoma', sans-serif; font-size: 13px; }
-            th, td { border: 1px solid #ccc; padding: 10px 5px; text-align: center; }
-            th { background-color: #1D6F42; color: white; white-space: nowrap; }
-            tr:nth-child(even) { background-color: #f9f9f9; }
-            .t-foot { background-color: #e8f5e9; font-weight: bold; }
+            body { padding: 20px; font-family: 'Tahoma', sans-serif; }
+            table { border-collapse: collapse; width: 100%; margin-top: 20px; }
+            /* หัวตารางตัวหนาและใหญ่ */
+            th { border: 2px solid #ccc; padding: 15px 5px; background-color: #1D6F42; color: white; font-size: 20px; white-space: nowrap; }
+            /* ตัวหนังสือในตารางขยายเป็น 18px */
+            td { border: 2px solid #ccc; padding: 18px 10px; text-align: center; font-size: 18px; font-weight: 500; }
+            tr:nth-child(even) { background-color: #f2f2f2; }
+            .t-foot { background-color: #ffd54f; font-weight: bold; font-size: 20px; }
             .text-red { color: #e74c3c; font-weight: bold; }
+            
+            /* 🔴 ปุ่มปิดไฟล์สำหรับมือถือ */
+            .btn-close-report {
+                display: block; width: 100%; padding: 15px; background-color: #e74c3c; 
+                color: white; text-align: center; text-decoration: none; 
+                font-size: 22px; font-weight: bold; border-radius: 10px; margin-bottom: 20px;
+            }
         </style>
     `;
 
     // --- 🏗️ เริ่มสร้าง HTML ---
     let tableHtml = `<html><head><meta charset="utf-8">${style}</head><body>`;
-    tableHtml += `<h3>รายงานสรุปเดือน: ${m}</h3>`;
+    
+    // เพิ่มปุ่มปิดที่ด้านบน (สำหรับเวลาเปิดดูใน Browser มือถือ)
+    tableHtml += `<a href="javascript:window.close();" class="btn-close-report" onclick="window.history.back();">❌ ปิดหน้ารายงานนี้</a>`;
+    
+    tableHtml += `<h2 style="text-align:center;">รายงานสรุปเดือน: ${m}</h2>`;
     tableHtml += `<table>
         <thead>
             <tr>
-                <th>วันที่</th>
+                <th>วันที่ไทย</th>
                 <th>วัน</th>
-                <th>ลูกค้า (คน)</th>
-                <th>ยอดช่าง (฿)</th>
+                <th>ลูกค้า</th>
+                <th>ยอดช่าง</th>
                 <th>โกน</th>
                 <th>สระ</th>
                 <th>ย้อม</th>
@@ -2210,57 +2227,50 @@ function exportToExcel() {
         </thead>
         <tbody>`;
 
-    // ตัวแปรสำหรับผลรวมท้ายตาราง
-    let grandTotalCust = 0;
-    let grandTotalBarber = 0;
-    let grandTotalShave = 0;
-    let grandTotalWash = 0;
-    let grandTotalDye = 0;
+    let grandTotalCust = 0, grandTotalBarber = 0, grandTotalShave = 0, grandTotalWash = 0, grandTotalDye = 0;
 
     filtered.forEach(day => {
         const isOff = (day.off === true || day.type === "HOLIDAY");
         
-        // หาชื่อวันภาษาไทย
-        const dayName = new Date(day.date).toLocaleDateString('th-TH', { weekday: 'long' });
-        const displayDay = isOff ? "<span class='text-red'>วันหยุด</span>" : dayName;
+        // 📅 1. แปลงวันที่เป็นแบบไทย (เช่น 1 มี.ค. 69)
+        const dObj = new Date(day.date);
+        const dayNum = dObj.getDate();
+        const monTh = thMonths[dObj.getMonth() + 1];
+        const yearTh = (dObj.getFullYear() + 543).toString().slice(-2);
+        const dateThai = `${dayNum} ${monTh} ${yearTh}`;
+
+        const dayName = dObj.toLocaleDateString('th-TH', { weekday: 'long' });
+        const displayDay = isOff ? "<span class='text-red'>หยุด</span>" : dayName.replace('วัน', '');
 
         let countCust = 0, countShave = 0, countWash = 0, countDye = 0;
-
         if (day.details && Array.isArray(day.details)) {
             day.details.forEach(d => {
                 if (d.type === "SERVICE") {
                     countCust++;
                     const s = String(d.svcs || "").toLowerCase();
-                    // ตรวจสอบคำสำคัญในรายการบริการ
                     if (s.includes("โกน")) countShave++;
                     if (s.includes("สระ")) countWash++;
                     if (s.includes("ย้อม") || s.includes("สี")) countDye++;
                 }
             });
         }
-
+        
         const barberEarn = Number(day.barber) || 0;
-
-        // บวกสะสมผลรวม
-        grandTotalCust += countCust;
-        grandTotalBarber += barberEarn;
-        grandTotalShave += countShave;
-        grandTotalWash += countWash;
-        grandTotalDye += countDye;
+        grandTotalCust += countCust; grandTotalBarber += barberEarn;
+        grandTotalShave += countShave; grandTotalWash += countWash; grandTotalDye += countDye;
 
         tableHtml += `
             <tr>
-                <td>${day.date}</td>
+                <td style="white-space:nowrap;">${dateThai}</td>
                 <td>${displayDay}</td>
                 <td>${countCust}</td>
-                <td>${barberEarn.toLocaleString()}</td>
+                <td style="color:#2e7d32;">${barberEarn.toLocaleString()}</td>
                 <td>${countShave || "-"}</td>
                 <td>${countWash || "-"}</td>
                 <td>${countDye || "-"}</td>
             </tr>`;
     });
 
-    // --- 📊 เพิ่มแถวสรุปผลรวม (Footer) ---
     tableHtml += `
         <tr class="t-foot">
             <td colspan="2">รวมทั้งสิ้น</td>
@@ -2278,7 +2288,7 @@ function exportToExcel() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `Report_Summary_${m}.xls`;
+    link.download = `Report_Thai_${m}.xls`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
