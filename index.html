@@ -2164,45 +2164,45 @@ function renderHistoryList() {
    (ส่วนสถิติ รายงาน และการส่งข้อมูลเข้า LINE)
    ========================================================== */
 function exportToExcel() {
+    // แก้จุดนี้: ให้ไปดึงค่าจาก id "histMonth" ซึ่งอยู่ในปุ่มสรุปรายเดือน
     const monthInput = document.getElementById("histMonth");
     const m = monthInput ? monthInput.value : "";
     
     if (!m) {
-        notify('warning', 'กรุณาเลือกเดือน', 'เลือกเดือนที่ต้องการส่งออกก่อนครับ');
-        setTimeout(() => { if(monthInput.showPicker) monthInput.showPicker(); }, 1200);
+        // ถ้ายังไม่ได้เลือกเดือน ให้สั่งเปิดตัวเลือกเดือนขึ้นมาเลย
+        alert("กรุณาเลือกเดือนที่ต้องการส่งออกก่อน");
+        monthInput.showPicker(); 
         return;
     }
 
-    // ดึงข้อมูลสำรองจาก localStorage กรณีตัวแปรในแอปว่าง
-    const localData = (typeof archives !== 'undefined' && archives.length > 0) 
-                      ? archives 
-                      : JSON.parse(localStorage.getItem("barber_archives")) || [];
+    if (typeof archives === 'undefined' || !archives.length) {
+        alert("ไม่พบข้อมูลประวัติ");
+        return;
+    }
 
-    const filtered = localData.filter(a => a.date && a.date.startsWith(m));
+    // กรองข้อมูล (ส่วนที่เหลือเหมือนเดิม)
+    const filtered = archives.filter(a => a.date && a.date.startsWith(m));
     
     if (!filtered.length) {
-        notify('error', 'ไม่พบข้อมูล', `ไม่พบประวัติของเดือน ${m} ครับ`);
+        alert(`ไม่พบข้อมูลของเดือน ${m}`);
         return;
     }
 
-    notify('success', 'กำลังเตรียมไฟล์', 'ระบบกำลังส่งออกไฟล์รายงาน CSV ครับ');
-
-    // --- 🏗️ สร้างเนื้อหาแบบ CSV (มาตรฐานที่เปิดได้ทุกเครื่อง) ---
-    // \uFEFF คือรหัสที่บอก Excel ว่า "นี่คือภาษาไทยนะ อย่าให้ตัวหนังสือต่างดาว"
     let csvContent = "\uFEFF"; 
-    
-    // หัวตาราง
-    csvContent += "วันที่,ประเภทวัน,ยอดรวม(บาท),ส่วนแบ่งช่าง(บาท),รายได้ร้าน(บาท),จำนวนลูกค้า(คน),รายการบริการและหมายเหตุ\n";
+    csvContent += "วันที่,ประเภทวัน,ยอดรวม (บาท),ส่วนแบ่งช่าง,รายได้ร้าน,รวมลูกค้า (คน),ลูกค้าใหม่,ลูกค้าประจำ,รายการที่ให้บริการ\n";
 
     filtered.forEach(day => {
         const isOff = (day.off === true || day.type === "HOLIDAY");
-        const typeDay = isOff ? "หยุด" : "ทำงาน";
-        let totalCustomers = 0, serviceList = [];
+        const typeDay = isOff ? "วันหยุด" : "วันทำงาน";
+        let totalCustomers = 0, cNew = 0, cReg = 0, serviceList = [];
 
         if (day.details && Array.isArray(day.details)) {
             day.details.forEach(d => {
                 if (d.type === "SERVICE") {
                     totalCustomers++;
+                    const type = String(d.custType || "").toLowerCase().trim();
+                    if (type === "new") cNew++;
+                    else if (type === "regular") cReg++;
                     if (d.svcs) {
                         const s = Array.isArray(d.svcs) ? d.svcs.join("/") : d.svcs;
                         serviceList.push(s);
@@ -2210,44 +2210,21 @@ function exportToExcel() {
                 }
             });
         }
-        
+        const servicesText = serviceList.length > 0 ? `"${serviceList.join(" | ")}"` : "-";
         const shopEarn = (Number(day.total) || 0) - (Number(day.barber) || 0);
-        
-        // ตกแต่งข้อความบริการ: ใช้ " " ครอบไว้เพื่อป้องกันเครื่องหมายคอมม่าทำตารางเบี้ยว
-        const servicesText = serviceList.length > 0 
-            ? `"${serviceList.join(" | ")}"` 
-            : `"${day.note || "-"}"`;
 
-        const row = [
-            day.date,
-            typeDay,
-            day.total || 0,
-            day.barber || 0,
-            shopEarn,
-            totalCustomers,
-            servicesText
-        ].join(",");
-
+        const row = [day.date, typeDay, Number(day.total) || 0, Number(day.barber) || 0, shopEarn, totalCustomers, cNew, cReg, servicesText].join(",");
         csvContent += row + "\n";
     });
 
-    // --- 📥 ขั้นตอนการดาวน์โหลดที่รองรับมือถือ ---
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
-    
-    link.href = url;
-    link.setAttribute("download", `Report_Barber_${m}.csv`); // ใช้ .csv จะเปิดง่ายกว่า .xls
-    link.style.display = 'none';
-    
+    link.setAttribute("href", url);
+    link.setAttribute("download", `รายงาน_Barber_${m}.csv`);
     document.body.appendChild(link);
-    link.click(); // สั่งคลิกเพื่อโหลด
-    
-    // ล้างหน่วยความจำหลังโหลดเสร็จ
-    setTimeout(() => {
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-    }, 100);
+    link.click();
+    document.body.removeChild(link);
 }
 function loadHistDaily() {
     const d = $("histDate").value;
