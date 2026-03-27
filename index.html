@@ -2167,14 +2167,25 @@ function exportToExcel() {
     const monthInput = document.getElementById("histMonth");
     const m = monthInput ? monthInput.value : "";
     
+    // 1. ตรวจสอบว่าเลือกเดือนหรือยัง
     if (!m) {
-        alert("กรุณาเลือกเดือนที่ต้องการส่งออกก่อนครับ");
-        monthInput.showPicker(); 
+        // เปลี่ยนจาก alert เป็น notify
+        notify('warning', 'กรุณาเลือกเดือน', 'เลือกเดือนที่ต้องการส่งออกก่อน');
+        setTimeout(() => { monthInput.showPicker(); }, 1200); // รอเสียงพูดแป๊บนึงแล้วค่อยเปิดที่เลือกเดือน
         return;
     }
 
     const filtered = archives.filter(a => a.date && a.date.startsWith(m));
-    if (!filtered.length) return alert(`ไม่พบข้อมูลของเดือน ${m}`);
+    
+    // 2. ตรวจสอบว่ามีข้อมูลไหม
+    if (!filtered.length) {
+        // เปลี่ยนจาก alert เป็น notify
+        notify('error', 'ไม่พบข้อมูล', `ไม่พบข้อมูลประวัติของเดือน ${m}`);
+        return;
+    }
+
+    // แจ้งเตือนเมื่อเริ่มดาวน์โหลด (แถมให้เพื่อความลื่นไหล)
+    notify('success', 'กำลังเตรียมไฟล์', 'ระบบกำลังส่งออกไฟล์ Excel');
 
     // --- 🎨 กำหนดสไตล์ของตาราง (CSS) ---
     const style = `
@@ -2245,7 +2256,7 @@ function exportToExcel() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `Report_Barber_${m}.xls`; // นามสกุล .xls จะทำให้เปิดด้วย Excel แล้วเห็นสไตล์
+    link.download = `Report_Barber_${m}.xls`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
