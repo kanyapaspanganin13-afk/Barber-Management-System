@@ -2165,38 +2165,58 @@ function renderHistoryList() {
    (ส่วนสถิติ รายงาน และการส่งข้อมูลเข้า LINE)
    ========================================================== */
 async function exportToExcel() {
-    // 🔍 1. โหลดข้อมูลอัตโนมัติ (ไม่ต้องกดภาพรวมก่อน)
-    try {
-        if (typeof fetchArchives === 'function') {
-            await fetchArchives(); 
-        }
-    } catch (e) {
-        console.log("Error loading archives:", e);
-    }
+    // 🔍 1. โหลดข้อมูลอัตโนมัติ
+    try { if (typeof fetchArchives === 'function') await fetchArchives(); } catch (e) {}
 
-    if (typeof archives === 'undefined' || !archives || archives.length === 0) {
-        alert("ไม่พบข้อมูลประวัติ กรุณาลองใหม่อีกครั้ง");
-        return;
+    if (typeof archives === 'undefined' || !archives) {
+        alert("ไม่พบข้อมูล"); return;
     }
 
     const monthInput = document.getElementById("histMonth");
     const m = monthInput ? monthInput.value : "";
-    if (!m) {
-        alert("กรุณาเลือกเดือน");
-        return;
-    }
-
     const filtered = archives.filter(a => a.date && a.date.startsWith(m));
-    if (!filtered.length) {
-        alert("ไม่พบข้อมูลเดือนนี้");
-        return;
-    }
+    if (!filtered.length) { alert("ไม่พบข้อมูล"); return; }
 
-    // 🏗️ 2. สร้างเนื้อหาแบบ CSV เพื่อให้ Excel บนมือถือเปิดได้ชัวร์
-    let csvContent = "\ufeff"; // ใส่ BOM ให้รองรับภาษาไทย
-    csvContent += "วันที่,วัน,ลูกค้า,ยอดช่าง,โกน,สระ,ย้อม\n";
-
+    const [y, mm] = m.split('-');
     const thMonths = ["", "ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
+    const headThai = `ประจำเดือน ${parseInt(mm)}/${parseInt(y)+543}`;
+
+    // 🎨 2. สร้างโครงสร้าง Excel XML (กำหนดสีและขนาดตัวอักษร)
+    let excelXml = `<?xml version="1.0" encoding="utf-8"?>
+    <?mso-application progid="Excel.Sheet"?>
+    <Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+        <Styles>
+            <Style ss:ID="header">
+                <Font ss:FontName="Tahoma" ss:Size="16" ss:Bold="1" ss:Color="#FFFFFF"/>
+                <Interior ss:Color="#1D6F42" ss:Pattern="Solid"/>
+                <Alignment ss:Horizontal="Center" ss:Vertical="Center"/>
+                <Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1"/></Borders>
+            </Style>
+            <Style ss:ID="cell">
+                <Font ss:FontName="Tahoma" ss:Size="14"/>
+                <Alignment ss:Horizontal="Center" ss:Vertical="Center"/>
+                <Borders><Border ss:Position="All" ss:LineStyle="Continuous" ss:Weight="1"/></Borders>
+            </Style>
+            <Style ss:ID="total">
+                <Font ss:FontName="Tahoma" ss:Size="14" ss:Bold="1"/>
+                <Interior ss:Color="#FFD54F" ss:Pattern="Solid"/>
+                <Alignment ss:Horizontal="Center" ss:Center="Center"/>
+            </Style>
+        </Styles>
+        <Worksheet ss:Name="Report">
+            <Table>
+                <Column ss:Width="100"/><Column ss:Width="80"/><Column ss:Width="60"/><Column ss:Width="80"/><Column ss:Width="50"/><Column ss:Width="50"/><Column ss:Width="50"/>
+                <Row ss:Height="30"><Cell ss:StyleID="header" ss:MergeAcross="6"><Data ss:Type="String">รายงาน${headThai}</Data></Cell></Row>
+                <Row ss:Height="25">
+                    <Cell ss:StyleID="header"><Data ss:Type="String">วันที่</Data></Cell>
+                    <Cell ss:StyleID="header"><Data ss:Type="String">วัน</Data></Cell>
+                    <Cell ss:StyleID="header"><Data ss:Type="String">ลูกค้า</Data></Cell>
+                    <Cell ss:StyleID="header"><Data ss:Type="String">ยอดช่าง</Data></Cell>
+                    <Cell ss:StyleID="header"><Data ss:Type="String">โกน</Data></Cell>
+                    <Cell ss:StyleID="header"><Data ss:Type="String">สระ</Data></Cell>
+                    <Cell ss:StyleID="header"><Data ss:Type="String">ย้อม</Data></Cell>
+                </Row>`;
+
     let gCust = 0, gBarber = 0, gShave = 0, gWash = 0, gDye = 0;
 
     filtered.forEach(day => {
@@ -2205,58 +2225,50 @@ async function exportToExcel() {
         const dateThai = `${dObj.getDate()} ${thMonths[dObj.getMonth() + 1]} ${(dObj.getFullYear() + 543).toString().slice(-2)}`;
         const dayName = isOff ? "หยุด" : dObj.toLocaleDateString('th-TH', { weekday: 'long' }).replace('วัน', '');
 
-        let cCust = 0, cShave = 0, cWash = 0, cDye = 0;
+        let cC = 0, cS = 0, cW = 0, cD = 0;
         if (day.details && Array.isArray(day.details)) {
-            day.details.forEach(d => {
-                if (d.type === "SERVICE") {
-                    cCust++;
-                    const s = String(d.svcs || "").toLowerCase();
-                    if (s.includes("โกน")) cShave++;
-                    if (s.includes("สระ")) cWash++;
-                    if (s.includes("ย้อม") || s.includes("สี")) cDye++;
-                }
-            });
+            day.details.forEach(d => { if (d.type === "SERVICE") { cC++; if (d.svcs?.includes("โกน")) cS++; if (d.svcs?.includes("สระ")) cW++; if (d.svcs?.includes("ย้อม")) cD++; } });
         }
-        
-        const bEarn = Number(day.barber) || 0;
-        gCust += cCust; gBarber += bEarn; gShave += cShave; gWash += cWash; gDye += cDye;
+        const bE = Number(day.barber) || 0;
+        gCust += cC; gBarber += bE; gShave += cS; gWash += cW; gDye += cD;
 
-        csvContent += `"${dateThai}","${dayName}",${cCust},${bEarn},${cShave || 0},${cWash || 0},${cDye || 0}\n`;
+        excelXml += `
+            <Row ss:Height="20">
+                <Cell ss:StyleID="cell"><Data ss:Type="String">${dateThai}</Data></Cell>
+                <Cell ss:StyleID="cell"><Data ss:Type="String">${dayName}</Data></Cell>
+                <Cell ss:StyleID="cell"><Data ss:Type="Number">${cC}</Data></Cell>
+                <Cell ss:StyleID="cell"><Data ss:Type="Number">${bE}</Data></Cell>
+                <Cell ss:StyleID="cell"><Data ss:Type="Number">${cS || 0}</Data></Cell>
+                <Cell ss:StyleID="cell"><Data ss:Type="Number">${cW || 0}</Data></Cell>
+                <Cell ss:StyleID="cell"><Data ss:Type="Number">${cD || 0}</Data></Cell>
+            </Row>`;
     });
 
-    csvContent += `\n"รวมทั้งสิ้น","",${gCust},${gBarber},${gShave},${gWash},${gDye}\n`;
+    excelXml += `
+                <Row ss:Height="25">
+                    <Cell ss:StyleID="total" ss:MergeAcross="1"><Data ss:Type="String">รวมทั้งสิ้น</Data></Cell>
+                    <Cell ss:StyleID="total"><Data ss:Type="Number">${gCust}</Data></Cell>
+                    <Cell ss:StyleID="total"><Data ss:Type="Number">${gBarber}</Data></Cell>
+                    <Cell ss:StyleID="total"><Data ss:Type="Number">${gShave}</Data></Cell>
+                    <Cell ss:StyleID="total"><Data ss:Type="Number">${gWash}</Data></Cell>
+                    <Cell ss:StyleID="total"><Data ss:Type="Number">${gDye}</Data></Cell>
+                </Row>
+            </Table>
+        </Worksheet>
+    </Workbook>`;
 
-    // 📥 3. เทคนิคการเรียกหน้าต่างดาวน์โหลดสำหรับ iOS/Safari
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const fileName = `Report_${m}.csv`;
-
-    // ใช้ความสามารถของเครื่องมือถือในการเปิดแผ่นแชร์ข้อมูล (Share Sheet) แทนการดาวน์โหลดเงียบๆ
-    if (navigator.share) {
-        const file = new File([blob], fileName, { type: 'text/csv' });
-        try {
-            await navigator.share({
-                files: [file],
-                title: 'รายงานรายเดือน',
-                text: 'เปิดด้วย Excel'
-            });
-        } catch (err) {
-            // ถ้าแชร์ไม่ได้ ให้ถอยไปใช้วิธีดาวน์โหลดปกติ
-            triggerDownload(blob, fileName);
-        }
-    } else {
-        triggerDownload(blob, fileName);
-    }
-}
-
-function triggerDownload(blob, fileName) {
+    // 📥 3. จัดการดาวน์โหลดแบบแม่นยำสำหรับ iOS
+    const blob = new Blob([excelXml], { type: 'application/vnd.ms-excel' });
     const url = URL.createObjectURL(blob);
+    
+    // บังคับให้ Safari เปิดหน้าต่างดาวน์โหลด
+    window.location.href = url; 
+
+    // เพิ่มปุ่มสำรองสำหรับหน้าจอหลัก
     const link = document.createElement("a");
     link.href = url;
-    link.download = fileName;
-    document.body.appendChild(link);
+    link.download = `Report_${m}.xls`;
     link.click();
-    document.body.removeChild(link);
-    setTimeout(() => URL.revokeObjectURL(url), 100);
 }
 function loadHistDaily() {
     const d = $("histDate").value;
