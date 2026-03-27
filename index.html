@@ -2164,92 +2164,95 @@ function renderHistoryList() {
    SECTION 7: ANALYTICS, REPORTS & SHARING
    (ส่วนสถิติ รายงาน และการส่งข้อมูลเข้า LINE)
    ========================================================== */
-async function exportToExcel() {
-    // 1. ตรวจสอบ Library
-    if (typeof XLSX === 'undefined') {
-        Swal.fire('ข้อผิดพลาด', 'ระบบยังโหลดเครื่องมือ Excel ไม่เสร็จ กรุณารอสักครู่ครับ', 'error');
-        return;
-    }
-
+function exportToExcel() {
     const monthInput = document.getElementById("histMonth");
     const m = monthInput ? monthInput.value : "";
     
     if (!m) {
         Swal.fire({
             title: 'กรุณาเลือกเดือน',
+            text: 'เลือกเดือนที่ต้องการดูรายงานก่อนครับ',
             icon: 'warning',
             confirmButtonText: 'ตกลง'
         }).then(() => {
-            if (monthInput && monthInput.showPicker) monthInput.showPicker();
+            if (monthInput.showPicker) monthInput.showPicker();
         });
         return;
     }
 
     const filtered = archives.filter(a => a.date && a.date.startsWith(m));
     if (!filtered.length) {
-        Swal.fire('ไม่พบข้อมูล', `ไม่พบประวัติของเดือน ${m} ครับ`, 'info');
+        Swal.fire('ไม่พบข้อมูล', `ไม่มีข้อมูลของเดือน ${m} ครับ`, 'info');
         return;
     }
 
-    try {
-        // 2. เตรียมข้อมูล
-        const data = filtered.map(day => {
-            let totalCust = 0, services = [];
-            if (day.details && Array.isArray(day.details)) {
-                day.details.forEach(d => {
-                    if (d.type === "SERVICE") {
-                        totalCust++;
-                        if (d.svcs) services.push(Array.isArray(d.svcs) ? d.svcs.join("/") : d.svcs);
-                    }
-                });
-            }
-            return {
-                "วันที่": day.date,
-                "สถานะ": (day.off || day.type === "HOLIDAY") ? "หยุด" : "ทำงาน",
-                "ยอดรวม": Number(day.total) || 0,
-                "ช่าง": Number(day.barber) || 0,
-                "ร้าน": (Number(day.total) || 0) - (Number(day.barber) || 0),
-                "ลูกค้า": totalCust,
-                "รายการ": services.join(" | ") || day.note || "-"
-            };
-        });
+    // --- 🏗️ สร้างเนื้อหาตาราง HTML สำหรับ Pop-up ---
+    let tableHtml = `
+        <div style="overflow-x:auto; -webkit-overflow-scrolling:touch;">
+            <table style="width:100%; border-collapse:collapse; font-size:13px; font-family:sans-serif;">
+                <thead>
+                    <tr style="background:#1e293b; color:white;">
+                        <th style="padding:10px; border:1px solid #334155;">วันที่</th>
+                        <th style="padding:10px; border:1px solid #334155;">รวม (฿)</th>
+                        <th style="padding:10px; border:1px solid #334155;">ร้าน (฿)</th>
+                        <th style="padding:10px; border:1px solid #334155;">ลูกค้า</th>
+                    </tr>
+                </thead>
+                <tbody>
+    `;
 
-        // 3. สร้าง Workbook และปรับความกว้างช่อง
-        const ws = XLSX.utils.json_to_sheet(data);
-        const wb = XLSX.utils.book_new();
+    let grandTotal = 0;
+    let shopTotal = 0;
+    let custTotal = 0;
+
+    filtered.forEach(day => {
+        const isOff = (day.off || day.type === "HOLIDAY");
+        const shopEarn = (Number(day.total) || 0) - (Number(day.barber) || 0);
+        let dailyCust = 0;
         
-        // กำหนดความกว้างคอลัมน์ (หน่วยเป็นตัวอักษร)
-        ws['!cols'] = [
-            { wch: 12 }, { wch: 8 }, { wch: 10 }, 
-            { wch: 10 }, { wch: 10 }, { wch: 8 }, { wch: 40 }
-        ];
+        if (day.details) {
+            dailyCust = day.details.filter(d => d.type === "SERVICE").length;
+        }
 
-        XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
+        grandTotal += (Number(day.total) || 0);
+        shopTotal += shopEarn;
+        custTotal += dailyCust;
 
-        // 4. แปลงไฟล์เป็น Binary เพื่อส่งออก (วิธีนี้เสถียรที่สุดบนมือถือ)
-        const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-        const finalData = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        tableHtml += `
+            <tr style="background:${isOff ? '#fff1f2' : 'white'};">
+                <td style="padding:8px; border:1px solid #e2e8f0; font-weight:bold;">${day.date.split('-')[2]}</td>
+                <td style="padding:8px; border:1px solid #e2e8f0;">${Number(day.total).toLocaleString()}</td>
+                <td style="padding:8px; border:1px solid #e2e8f0; color:#0284c7; font-weight:bold;">${shopEarn.toLocaleString()}</td>
+                <td style="padding:8px; border:1px solid #e2e8f0;">${dailyCust}</td>
+            </tr>
+        `;
+    });
 
-        // 5. สร้าง Link ดาวน์โหลดชั่วคราว
-        const url = URL.createObjectURL(finalData);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `Report_${m}.xlsx`;
-        document.body.appendChild(a);
-        a.click();
-        
-        // ล้างหน่วยความจำ
-        setTimeout(() => {
-            document.body.removeChild(a);
-            window.URL.revokeObjectURL(url);
-        }, 100);
+    tableHtml += `
+                </tbody>
+                <tfoot>
+                    <tr style="background:#f8fafc; font-weight:bold;">
+                        <td style="padding:10px; border:1px solid #cbd5e1;">รวม</td>
+                        <td style="padding:10px; border:1px solid #cbd5e1;">${grandTotal.toLocaleString()}</td>
+                        <td style="padding:10px; border:1px solid #cbd5e1; color:#0284c7;">${shopTotal.toLocaleString()}</td>
+                        <td style="padding:10px; border:1px solid #cbd5e1;">${custTotal}</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+        <p style="font-size:11px; color:#64748b; margin-top:10px; text-align:left;">* แถวสีชมพูคือวันหยุด/ประกัน</p>
+    `;
 
-        Swal.fire('สำเร็จ', 'ส่งออกไฟล์เรียบร้อย เช็คได้ที่โฟลเดอร์ดาวน์โหลดครับ', 'success');
-
-    } catch (error) {
-        console.error(error);
-        Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถสร้างไฟล์ได้: ' + error.message, 'error');
-    }
+    // --- 🚀 แสดงผลผ่าน SweetAlert2 Pop-up ---
+    Swal.fire({
+        title: `📊 รายงานเดือน ${m}`,
+        html: tableHtml,
+        width: '95%',
+        padding: '10px',
+        showCloseButton: true,
+        confirmButtonText: 'ปิดหน้าต่าง',
+        confirmButtonColor: '#0f172a'
+    });
 }
 function loadHistDaily() {
     const d = $("histDate").value;
