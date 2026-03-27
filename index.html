@@ -2165,81 +2165,150 @@ function renderHistoryList() {
    (ส่วนสถิติ รายงาน และการส่งข้อมูลเข้า LINE)
    ========================================================== */
 async function exportToExcel() {
-    // 🔍 1. ดึงข้อมูลอัตโนมัติ
-    try { if (typeof fetchArchives === 'function') await fetchArchives(); } catch (e) {}
+    // 🔍 1. บังคับโหลดข้อมูลใหม่ทันที (แก้ปัญหาต้องกดภาพรวมก่อน)
+    try {
+        if (typeof fetchArchives === 'function') {
+            // โชว์ Alert บอกผู้ใช้นิดนึงว่ากำลังเตรียมไฟล์
+            console.log("กำลังดึงข้อมูลล่าสุด...");
+            await fetchArchives(); 
+        }
+    } catch (e) {
+        console.log("Fetch error:", e);
+    }
 
-    if (typeof archives === 'undefined' || !archives) {
-        alert("ไม่พบข้อมูล"); return;
+    // เช็คอีกครั้งว่ามีข้อมูลมาหรือยัง
+    if (typeof archives === 'undefined' || archives === null || archives.length === 0) {
+        alert("ไม่พบข้อมูลประวัติในระบบ กรุณาลองใหม่อีกครั้ง");
+        return;
     }
 
     const monthInput = document.getElementById("histMonth");
     const m = monthInput ? monthInput.value : "";
+    
+    if (!m) {
+        alert("กรุณาเลือกเดือนที่ต้องการส่งออก");
+        if (monthInput.showPicker) monthInput.showPicker();
+        return;
+    }
+
     const filtered = archives.filter(a => a.date && a.date.startsWith(m));
-    if (!filtered.length) { alert("ไม่พบข้อมูลเดือนนี้"); return; }
+    if (!filtered.length) {
+        const [y, mm] = m.split('-');
+        alert(`ไม่พบข้อมูลของเดือน ${parseInt(mm)}/${parseInt(y)+543}`);
+        return;
+    }
 
-    const [y, mm] = m.split('-');
     const thMonths = ["", "ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
-    const headThai = `ประจำเดือน ${parseInt(mm)}/${parseInt(y)+543}`;
+    const fullThaiMonths = ["", "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"];
+    
+    const [y, mm] = m.split('-');
+    const headThai = `${fullThaiMonths[parseInt(mm)]} ${parseInt(y) + 543}`;
 
-    // 🎨 2. สร้างเนื้อหาแบบ HTML ที่ Excel เข้าใจ (เน้นตัวใหญ่และสีสัน)
     const style = `
         <style>
-            table { border-collapse: collapse; font-family: 'Tahoma', sans-serif; }
-            th { background-color: #1D6F42; color: #FFFFFF; border: 1px solid #000; font-size: 20px; padding: 10px; }
-            td { border: 1px solid #000; font-size: 18px; text-align: center; padding: 8px; }
-            .total-row { background-color: #FFD54F; font-weight: bold; }
+            body { padding: 20px; font-family: 'Tahoma', sans-serif; text-align: center; }
+            table { border-collapse: collapse; width: 100%; margin-top: 20px; }
+            th { border: 2px solid #ccc; padding: 15px 5px; background-color: #1D6F42; color: white; font-size: 30px; white-space: nowrap; }
+            td { border: 2px solid #ccc; padding: 12px 10px; text-align: center; font-size: 25px; font-weight: 500; color: #000; }
+            tr:nth-child(even) { background-color: #f2f2f2; }
+            
+            /* 🔴 ปุ่มปิดแบบบังคับกลับหน้าแรก (ป้องกันเด้งไปหน้าตั้งค่า) */
+            .btn-close-report {
+                display: block; width: 95%; padding: 20px; background-color: #e74c3c; 
+                color: white !important; text-align: center; text-decoration: none !important; 
+                font-size: 30px; font-weight: bold; border-radius: 15px; margin: 0 auto 30px auto;
+                border: none; cursor: pointer;
+            }
         </style>
     `;
 
-    let tableHtml = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">`;
-    tableHtml += `<head><meta charset="utf-8"/><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>Report</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml>${style}</head><body>`;
-    tableHtml += `<h2>รายงาน${headThai}</h2>`;
-    tableHtml += `<table><thead><tr><th>วันที่</th><th>วัน</th><th>ลูกค้า</th><th>ยอดช่าง</th><th>โกน</th><th>สระ</th><th>ย้อม</th></tr></thead><tbody>`;
+    // 🏗️ เริ่มสร้างหน้า HTML
+    let tableHtml = `<html><head><meta charset="utf-8">${style}</head><body>`; 
+    
+    // 🛠️ แก้ไขจุดปิด: บังคับให้โหลดหน้าเว็บใหม่ (จะกลับไปที่หน้าแรกของแอปคุณเสมอ)
+    tableHtml += `<a href="index.html" class="btn-close-report">🔙 ดาวน์โหลดเสร็จแล้ว แตะเพื่อกลับ</a>`;
+    
+    tableHtml += `<h1 style="text-align:center; font-size: 38px; margin-bottom: 20px;">รายงานประจำเดือน: ${headThai}</h1>`;
 
-    let gCust = 0, gBarber = 0, gShave = 0, gWash = 0, gDye = 0;
+    tableHtml += `<table>
+        <thead>
+            <tr>
+                <th>วันที่</th>
+                <th>วัน</th>
+                <th>ลูกค้า</th>
+                <th>ยอดช่าง</th>
+                <th>โกน</th>
+                <th>สระ</th>
+                <th>ย้อม</th>
+            </tr>
+        </thead>
+        <tbody>`;
+
+    let grandTotalCust = 0, grandTotalBarber = 0, grandTotalShave = 0, grandTotalWash = 0, grandTotalDye = 0;
 
     filtered.forEach(day => {
         const isOff = (day.off === true || day.type === "HOLIDAY");
         const dObj = new Date(day.date);
         const dateThai = `${dObj.getDate()} ${thMonths[dObj.getMonth() + 1]} ${(dObj.getFullYear() + 543).toString().slice(-2)}`;
-        const dayName = isOff ? "หยุด" : dObj.toLocaleDateString('th-TH', { weekday: 'long' }).replace('วัน', '');
+        const dayName = dObj.toLocaleDateString('th-TH', { weekday: 'long' }).replace('วัน', '');
+        
+        const displayDay = isOff ? `<span style="color: #e74c3c; font-weight: bold;">หยุด</span>` : dayName;
 
-        let cC = 0, cS = 0, cW = 0, cD = 0;
+        let countCust = 0, countShave = 0, countWash = 0, countDye = 0;
         if (day.details && Array.isArray(day.details)) {
-            day.details.forEach(d => { if (d.type === "SERVICE") { cC++; if (d.svcs?.includes("โกน")) cS++; if (d.svcs?.includes("สระ")) cW++; if (d.svcs?.includes("ย้อม")) cD++; } });
+            day.details.forEach(d => {
+                if (d.type === "SERVICE") {
+                    countCust++;
+                    const s = String(d.svcs || "").toLowerCase();
+                    if (s.includes("โกน")) countShave++;
+                    if (s.includes("สระ")) countWash++;
+                    if (s.includes("ย้อม") || s.includes("สี")) countDye++;
+                }
+            });
         }
-        const bE = Number(day.barber) || 0;
-        gCust += cC; gBarber += bE; gShave += cS; gWash += cW; gDye += cD;
+        
+        const barberEarn = Number(day.barber) || 0;
+        grandTotalCust += countCust; 
+        grandTotalBarber += barberEarn;
+        grandTotalShave += countShave; 
+        grandTotalWash += countWash; 
+        grandTotalDye += countDye;
 
-        tableHtml += `<tr><td>${dateThai}</td><td>${dayName}</td><td>${cC}</td><td>${bE.toLocaleString()}</td><td>${cS || "-"}</td><td>${cW || "-"}</td><td>${cD || "-"}</td></tr>`;
+        tableHtml += `
+            <tr>
+                <td style="white-space:nowrap;">${dateThai}</td>
+                <td>${displayDay}</td>
+                <td>${countCust}</td>
+                <td style="color:#1b5e20;">${barberEarn.toLocaleString()}</td>
+                <td>${countShave || "-"}</td>
+                <td>${countWash || "-"}</td>
+                <td>${countDye || "-"}</td>
+            </tr>`;
     });
 
-    tableHtml += `<tr class="total-row"><td colspan="2">รวมทั้งสิ้น</td><td>${gCust}</td><td>${gBarber.toLocaleString()}</td><td>${gShave}</td><td>${gWash}</td><td>${gDye}</td></tr>`;
+    tableHtml += `
+        <tr style="background-color: #ffd54f; font-weight: bold; font-size: 28px;">
+            <td colspan="2" style="border: 2px solid #ccc; padding: 15px;">รวมทั้งสิ้น</td>
+            <td style="border: 2px solid #ccc;">${grandTotalCust.toLocaleString()}</td>
+            <td style="border: 2px solid #ccc;">${grandTotalBarber.toLocaleString()}</td>
+            <td style="border: 2px solid #ccc;">${grandTotalShave}</td>
+            <td style="border: 2px solid #ccc;">${grandTotalWash}</td>
+            <td style="border: 2px solid #ccc;">${grandTotalDye}</td>
+        </tr>`;
+
     tableHtml += `</tbody></table></body></html>`;
 
-    // 📥 3. วิธีการดาวน์โหลดที่ iOS ยอมรับ (ใช้ Data URL แทน Blob ในบางกรณี)
-    const fileName = `Report_${m}.xls`;
-    const dataType = 'application/vnd.ms-excel';
-    
-    // สร้างลิ้งค์สำหรับดาวน์โหลด
-    const base64 = (s) => window.btoa(unescape(encodeURIComponent(s)));
-    const url = 'data:' + dataType + ';base64,' + base64(tableHtml);
-
+    // --- ส่วนดาวน์โหลดไฟล์ ---
+    const blob = new Blob([tableHtml], { type: 'application/vnd.ms-excel' });
+    const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = fileName;
+    link.download = `Report_${m}.xls`;
+    document.body.appendChild(link);
+    link.click();
     
-    // สำหรับ iPhone ที่แชร์หน้าจอหลัก ต้องใช้การเปิดหน้าต่างใหม่
-    const newTab = window.open();
-    if (newTab) {
-        newTab.document.write(tableHtml);
-        newTab.document.close();
-        alert("หากไฟล์ไม่โหลดอัตโนมัติ ให้กดค้างที่หน้าจอแล้วเลือก 'บันทึก' หรือเปิดด้วย Excel ครับ");
-    } else {
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-    }
+    // ถ้าเป็นมือถือ บางทีมันเปิดหน้าใหม่ให้เลย
+    window.location.href = url; 
 }
 function loadHistDaily() {
     const d = $("histDate").value;
