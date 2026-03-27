@@ -704,7 +704,7 @@ nav {
                     <button onclick="document.getElementById('modalSet').style.display='none'" style="background:var(--bg); color:var(--text); opacity:0.7; height:60px; border-radius:20px; border:none; font-weight:800; font-size:16px;">ปิด</button>
                 </div>
                 <div style="text-align:center; line-height: 1.4; opacity: 0.5;">
-                    <div style="font-size:10px; color:var(--text); font-weight:600;">V.1.0.6</div>
+                    <div style="font-size:10px; color:var(--text); font-weight:600;">V.1.0.7</div>
                     <div style="font-size:9px; color:var(--text); font-weight:400;">Update: 27/03/2026</div>
                 </div>
             </div>
@@ -742,7 +742,7 @@ nav {
    ========================================================== */
 const $ = (id) => document.getElementById(id);
 // 1. ตั้งค่าเลขเวอร์ชันและวันที่
-const APP_VERSION = "1.0.6"; 
+const APP_VERSION = "1.0.7"; 
 const LAST_UPDATED = "27/03/2026"; 
 // 2. ระบบอัปเดตอัตโนมัติ (ใส่ไว้ตรงนี้เพื่อให้ทำงานทันทีที่โหลดสคริปต์)
 (function autoUpdate() {
@@ -2168,17 +2168,25 @@ function renderHistoryList() {
    (ส่วนสถิติ รายงาน และการส่งข้อมูลเข้า LINE)
    ========================================================== */
 async function exportToExcel() {
-    // 🔍 1. บังคับโหลดข้อมูลใหม่ทันที
+    // 🔍 1. บังคับโหลดข้อมูลใหม่
     try {
         if (typeof fetchArchives === 'function') {
-            console.log("กำลังดึงข้อมูลล่าสุด...");
             await fetchArchives(); 
         }
     } catch (e) {
         console.log("Fetch error:", e);
     }
 
-    // เช็คข้อมูล
+    // 🏷️ 2. ดึงชื่อร้าน (ดึงจากจุดที่คุณใช้ใน saveSettings)
+    // ลำดับ: จากช่อง Input > จาก LocalStorage (shopName) > จากตัวแปรกลาง (conf.shop) > ค่าเริ่มต้น
+    const shopInput = document.getElementById("setShop");
+    const savedName = localStorage.getItem('shopName');
+    
+    const displayShopName = (shopInput && shopInput.value) 
+                            ? shopInput.value 
+                            : (savedName || (typeof conf !== 'undefined' ? conf.shop : "บาร์เบอร์"));
+
+    // เช็คข้อมูลประวัติ
     if (typeof archives === 'undefined' || archives === null || archives.length === 0) {
         alert("ไม่พบข้อมูลประวัติในระบบ กรุณาลองใหม่อีกครั้ง");
         return;
@@ -2189,7 +2197,7 @@ async function exportToExcel() {
     
     if (!m) {
         alert("กรุณาเลือกเดือนที่ต้องการส่งออก");
-        if (monthInput.showPicker) monthInput.showPicker();
+        if (monthInput && monthInput.showPicker) monthInput.showPicker();
         return;
     }
 
@@ -2206,9 +2214,6 @@ async function exportToExcel() {
     const [y, mm] = m.split('-');
     const headThai = `${fullThaiMonths[parseInt(mm)]} ${parseInt(y) + 543}`;
 
-    // 🏷️ ดึงค่าชื่อร้านจากตัวแปร shopName (ถ้าไม่มีให้ใช้คำว่า บาร์เบอร์)
-    const displayShopName = (typeof shopName !== 'undefined' && shopName) ? shopName : "บาร์เบอร์";
-
     const style = `
         <style>
             body { padding: 20px; font-family: 'Tahoma', sans-serif; text-align: center; }
@@ -2221,10 +2226,10 @@ async function exportToExcel() {
         </style>
     `;
 
-    // 🏗️ เริ่มสร้างหน้า HTML
+    // 🏗️ สร้างหน้า HTML
     let tableHtml = `<html><head><meta charset="utf-8">${style}</head><body>`; 
     
-    // ✅ แก้ไข: ดึงชื่อร้านจากตัวแปร shopName มาแสดงตามรูปแบบที่ต้องการ
+    // ✅ ใช้ชื่อร้านที่ดึงมาล่าสุด
     tableHtml += `<h1>รายงานร้าน: ${displayShopName}</h1>`;
     tableHtml += `<h2>ประจำเดือน: ${headThai}</h2>`;
 
