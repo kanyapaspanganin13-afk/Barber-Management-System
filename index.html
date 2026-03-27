@@ -701,7 +701,7 @@ nav {
                     <button onclick="document.getElementById('modalSet').style.display='none'" style="background:var(--bg); color:var(--text); opacity:0.7; height:60px; border-radius:20px; border:none; font-weight:800; font-size:16px;">ปิด</button>
                 </div>
                 <div style="text-align:center; line-height: 1.4; opacity: 0.5;">
-                    <div style="font-size:10px; color:var(--text); font-weight:600;">V.1.0.5</div>
+                    <div style="font-size:10px; color:var(--text); font-weight:600;">V.1.0.6</div>
                     <div style="font-size:9px; color:var(--text); font-weight:400;">Update: 27/03/2026</div>
                 </div>
             </div>
@@ -739,7 +739,7 @@ nav {
    ========================================================== */
 const $ = (id) => document.getElementById(id);
 // 1. ตั้งค่าเลขเวอร์ชันและวันที่
-const APP_VERSION = "1.0.5"; 
+const APP_VERSION = "1.0.6"; 
 const LAST_UPDATED = "27/03/2026"; 
 // 2. ระบบอัปเดตอัตโนมัติ (ใส่ไว้ตรงนี้เพื่อให้ทำงานทันทีที่โหลดสคริปต์)
 (function autoUpdate() {
@@ -2165,150 +2165,98 @@ function renderHistoryList() {
    (ส่วนสถิติ รายงาน และการส่งข้อมูลเข้า LINE)
    ========================================================== */
 async function exportToExcel() {
-    // 🔍 1. บังคับโหลดข้อมูลใหม่ทันที (แก้ปัญหาต้องกดภาพรวมก่อน)
+    // 🔍 1. โหลดข้อมูลอัตโนมัติ (ไม่ต้องกดภาพรวมก่อน)
     try {
         if (typeof fetchArchives === 'function') {
-            // โชว์ Alert บอกผู้ใช้นิดนึงว่ากำลังเตรียมไฟล์
-            console.log("กำลังดึงข้อมูลล่าสุด...");
             await fetchArchives(); 
         }
     } catch (e) {
-        console.log("Fetch error:", e);
+        console.log("Error loading archives:", e);
     }
 
-    // เช็คอีกครั้งว่ามีข้อมูลมาหรือยัง
-    if (typeof archives === 'undefined' || archives === null || archives.length === 0) {
-        alert("ไม่พบข้อมูลประวัติในระบบ กรุณาลองใหม่อีกครั้ง");
+    if (typeof archives === 'undefined' || !archives || archives.length === 0) {
+        alert("ไม่พบข้อมูลประวัติ กรุณาลองใหม่อีกครั้ง");
         return;
     }
 
     const monthInput = document.getElementById("histMonth");
     const m = monthInput ? monthInput.value : "";
-    
     if (!m) {
-        alert("กรุณาเลือกเดือนที่ต้องการส่งออก");
-        if (monthInput.showPicker) monthInput.showPicker();
+        alert("กรุณาเลือกเดือน");
         return;
     }
 
     const filtered = archives.filter(a => a.date && a.date.startsWith(m));
     if (!filtered.length) {
-        const [y, mm] = m.split('-');
-        alert(`ไม่พบข้อมูลของเดือน ${parseInt(mm)}/${parseInt(y)+543}`);
+        alert("ไม่พบข้อมูลเดือนนี้");
         return;
     }
 
+    // 🏗️ 2. สร้างเนื้อหาแบบ CSV เพื่อให้ Excel บนมือถือเปิดได้ชัวร์
+    let csvContent = "\ufeff"; // ใส่ BOM ให้รองรับภาษาไทย
+    csvContent += "วันที่,วัน,ลูกค้า,ยอดช่าง,โกน,สระ,ย้อม\n";
+
     const thMonths = ["", "ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
-    const fullThaiMonths = ["", "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"];
-    
-    const [y, mm] = m.split('-');
-    const headThai = `${fullThaiMonths[parseInt(mm)]} ${parseInt(y) + 543}`;
-
-    const style = `
-        <style>
-            body { padding: 20px; font-family: 'Tahoma', sans-serif; text-align: center; }
-            table { border-collapse: collapse; width: 100%; margin-top: 20px; }
-            th { border: 2px solid #ccc; padding: 15px 5px; background-color: #1D6F42; color: white; font-size: 30px; white-space: nowrap; }
-            td { border: 2px solid #ccc; padding: 12px 10px; text-align: center; font-size: 25px; font-weight: 500; color: #000; }
-            tr:nth-child(even) { background-color: #f2f2f2; }
-            
-            /* 🔴 ปุ่มปิดแบบบังคับกลับหน้าแรก (ป้องกันเด้งไปหน้าตั้งค่า) */
-            .btn-close-report {
-                display: block; width: 95%; padding: 20px; background-color: #e74c3c; 
-                color: white !important; text-align: center; text-decoration: none !important; 
-                font-size: 30px; font-weight: bold; border-radius: 15px; margin: 0 auto 30px auto;
-                border: none; cursor: pointer;
-            }
-        </style>
-    `;
-
-    // 🏗️ เริ่มสร้างหน้า HTML
-    let tableHtml = `<html><head><meta charset="utf-8">${style}</head><body>`; 
-    
-    // 🛠️ แก้ไขจุดปิด: บังคับให้โหลดหน้าเว็บใหม่ (จะกลับไปที่หน้าแรกของแอปคุณเสมอ)
-    tableHtml += `<a href="index.html" class="btn-close-report">🔙 ดาวน์โหลดเสร็จแล้ว แตะเพื่อกลับ</a>`;
-    
-    tableHtml += `<h1 style="text-align:center; font-size: 38px; margin-bottom: 20px;">รายงานประจำเดือน: ${headThai}</h1>`;
-
-    tableHtml += `<table>
-        <thead>
-            <tr>
-                <th>วันที่</th>
-                <th>วัน</th>
-                <th>ลูกค้า</th>
-                <th>ยอดช่าง</th>
-                <th>โกน</th>
-                <th>สระ</th>
-                <th>ย้อม</th>
-            </tr>
-        </thead>
-        <tbody>`;
-
-    let grandTotalCust = 0, grandTotalBarber = 0, grandTotalShave = 0, grandTotalWash = 0, grandTotalDye = 0;
+    let gCust = 0, gBarber = 0, gShave = 0, gWash = 0, gDye = 0;
 
     filtered.forEach(day => {
         const isOff = (day.off === true || day.type === "HOLIDAY");
         const dObj = new Date(day.date);
         const dateThai = `${dObj.getDate()} ${thMonths[dObj.getMonth() + 1]} ${(dObj.getFullYear() + 543).toString().slice(-2)}`;
-        const dayName = dObj.toLocaleDateString('th-TH', { weekday: 'long' }).replace('วัน', '');
-        
-        const displayDay = isOff ? `<span style="color: #e74c3c; font-weight: bold;">หยุด</span>` : dayName;
+        const dayName = isOff ? "หยุด" : dObj.toLocaleDateString('th-TH', { weekday: 'long' }).replace('วัน', '');
 
-        let countCust = 0, countShave = 0, countWash = 0, countDye = 0;
+        let cCust = 0, cShave = 0, cWash = 0, cDye = 0;
         if (day.details && Array.isArray(day.details)) {
             day.details.forEach(d => {
                 if (d.type === "SERVICE") {
-                    countCust++;
+                    cCust++;
                     const s = String(d.svcs || "").toLowerCase();
-                    if (s.includes("โกน")) countShave++;
-                    if (s.includes("สระ")) countWash++;
-                    if (s.includes("ย้อม") || s.includes("สี")) countDye++;
+                    if (s.includes("โกน")) cShave++;
+                    if (s.includes("สระ")) cWash++;
+                    if (s.includes("ย้อม") || s.includes("สี")) cDye++;
                 }
             });
         }
         
-        const barberEarn = Number(day.barber) || 0;
-        grandTotalCust += countCust; 
-        grandTotalBarber += barberEarn;
-        grandTotalShave += countShave; 
-        grandTotalWash += countWash; 
-        grandTotalDye += countDye;
+        const bEarn = Number(day.barber) || 0;
+        gCust += cCust; gBarber += bEarn; gShave += cShave; gWash += cWash; gDye += cDye;
 
-        tableHtml += `
-            <tr>
-                <td style="white-space:nowrap;">${dateThai}</td>
-                <td>${displayDay}</td>
-                <td>${countCust}</td>
-                <td style="color:#1b5e20;">${barberEarn.toLocaleString()}</td>
-                <td>${countShave || "-"}</td>
-                <td>${countWash || "-"}</td>
-                <td>${countDye || "-"}</td>
-            </tr>`;
+        csvContent += `"${dateThai}","${dayName}",${cCust},${bEarn},${cShave || 0},${cWash || 0},${cDye || 0}\n`;
     });
 
-    tableHtml += `
-        <tr style="background-color: #ffd54f; font-weight: bold; font-size: 28px;">
-            <td colspan="2" style="border: 2px solid #ccc; padding: 15px;">รวมทั้งสิ้น</td>
-            <td style="border: 2px solid #ccc;">${grandTotalCust.toLocaleString()}</td>
-            <td style="border: 2px solid #ccc;">${grandTotalBarber.toLocaleString()}</td>
-            <td style="border: 2px solid #ccc;">${grandTotalShave}</td>
-            <td style="border: 2px solid #ccc;">${grandTotalWash}</td>
-            <td style="border: 2px solid #ccc;">${grandTotalDye}</td>
-        </tr>`;
+    csvContent += `\n"รวมทั้งสิ้น","",${gCust},${gBarber},${gShave},${gWash},${gDye}\n`;
 
-    tableHtml += `</tbody></table></body></html>`;
+    // 📥 3. เทคนิคการเรียกหน้าต่างดาวน์โหลดสำหรับ iOS/Safari
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const fileName = `Report_${m}.csv`;
 
-    // --- ส่วนดาวน์โหลดไฟล์ ---
-    const blob = new Blob([tableHtml], { type: 'application/vnd.ms-excel' });
+    // ใช้ความสามารถของเครื่องมือถือในการเปิดแผ่นแชร์ข้อมูล (Share Sheet) แทนการดาวน์โหลดเงียบๆ
+    if (navigator.share) {
+        const file = new File([blob], fileName, { type: 'text/csv' });
+        try {
+            await navigator.share({
+                files: [file],
+                title: 'รายงานรายเดือน',
+                text: 'เปิดด้วย Excel'
+            });
+        } catch (err) {
+            // ถ้าแชร์ไม่ได้ ให้ถอยไปใช้วิธีดาวน์โหลดปกติ
+            triggerDownload(blob, fileName);
+        }
+    } else {
+        triggerDownload(blob, fileName);
+    }
+}
+
+function triggerDownload(blob, fileName) {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `Report_${m}.xls`;
+    link.download = fileName;
     document.body.appendChild(link);
     link.click();
-    
-    // ถ้าเป็นมือถือ บางทีมันเปิดหน้าใหม่ให้เลย
-    window.location.href = url; 
+    document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(url), 100);
 }
 function loadHistDaily() {
     const d = $("histDate").value;
