@@ -2170,83 +2170,115 @@ function exportToExcel() {
     
     if (!m) {
         alert("กรุณาเลือกเดือนที่ต้องการส่งออกก่อนครับ");
-        monthInput.showPicker(); 
+        if (monthInput.showPicker) monthInput.showPicker();
         return;
     }
 
     const filtered = archives.filter(a => a.date && a.date.startsWith(m));
-    if (!filtered.length) return alert(`ไม่พบข้อมูลของเดือน ${m}`);
+    if (!filtered.length) {
+        const [y, mm] = m.split('-');
+        alert(`ไม่พบข้อมูลของเดือน ${parseInt(mm)}/${parseInt(y)+543}`);
+        return;
+    }
 
-    // --- 🎨 กำหนดสไตล์ของตาราง (CSS) ---
+    // --- 🎨 CSS สำหรับตารางบนมือถือ ---
     const style = `
         <style>
-            table { border-collapse: collapse; width: 100%; font-family: 'Tahoma', sans-serif; font-size: 14px; }
-            th, td { border: 1px solid #ddd; padding: 12px 8px; text-align: center; }
-            th { background-color: #1D6F42; color: white; font-weight: bold; white-space: nowrap; }
+            table { border-collapse: collapse; width: 100%; font-family: 'Tahoma', sans-serif; font-size: 13px; }
+            th, td { border: 1px solid #ccc; padding: 10px 5px; text-align: center; }
+            th { background-color: #1D6F42; color: white; white-space: nowrap; }
             tr:nth-child(even) { background-color: #f9f9f9; }
-            .date-col { width: 100px; }
-            .note-col { text-align: left; min-width: 150px; color: #555; font-size: 12px; }
-            .money { font-weight: bold; color: #2c3e50; }
+            .t-foot { background-color: #e8f5e9; font-weight: bold; }
+            .text-red { color: #e74c3c; font-weight: bold; }
         </style>
     `;
 
-    // --- 🏗️ สร้างเนื้อหาตาราง HTML ---
+    // --- 🏗️ เริ่มสร้าง HTML ---
     let tableHtml = `<html><head><meta charset="utf-8">${style}</head><body>`;
-    tableHtml += `<h3>รายงานรายเดือน: ${m}</h3>`;
+    tableHtml += `<h3>รายงานสรุปเดือน: ${m}</h3>`;
     tableHtml += `<table>
         <thead>
             <tr>
-                <th class="date-col">วันที่</th>
-                <th>ประเภท</th>
-                <th>รวม (฿)</th>
-                <th>ช่าง (฿)</th>
-                <th>ร้าน (฿)</th>
-                <th>ลูกค้า</th>
-                <th class="note-col">รายการบริการ / หมายเหตุ</th>
+                <th>วันที่</th>
+                <th>วัน</th>
+                <th>ลูกค้า (คน)</th>
+                <th>ยอดช่าง (฿)</th>
+                <th>โกน</th>
+                <th>สระ</th>
+                <th>ย้อม</th>
             </tr>
         </thead>
         <tbody>`;
 
+    // ตัวแปรสำหรับผลรวมท้ายตาราง
+    let grandTotalCust = 0;
+    let grandTotalBarber = 0;
+    let grandTotalShave = 0;
+    let grandTotalWash = 0;
+    let grandTotalDye = 0;
+
     filtered.forEach(day => {
         const isOff = (day.off === true || day.type === "HOLIDAY");
-        const typeDay = isOff ? "หยุด" : "ทำงาน";
-        let totalCustomers = 0, serviceList = [];
+        
+        // หาชื่อวันภาษาไทย
+        const dayName = new Date(day.date).toLocaleDateString('th-TH', { weekday: 'long' });
+        const displayDay = isOff ? "<span class='text-red'>วันหยุด</span>" : dayName;
+
+        let countCust = 0, countShave = 0, countWash = 0, countDye = 0;
 
         if (day.details && Array.isArray(day.details)) {
             day.details.forEach(d => {
                 if (d.type === "SERVICE") {
-                    totalCustomers++;
-                    if (d.svcs) {
-                        const s = Array.isArray(d.svcs) ? d.svcs.join(", ") : d.svcs;
-                        serviceList.push(s);
-                    }
+                    countCust++;
+                    const s = String(d.svcs || "").toLowerCase();
+                    // ตรวจสอบคำสำคัญในรายการบริการ
+                    if (s.includes("โกน")) countShave++;
+                    if (s.includes("สระ")) countWash++;
+                    if (s.includes("ย้อม") || s.includes("สี")) countDye++;
                 }
             });
         }
-        
-        const shopEarn = (Number(day.total) || 0) - (Number(day.barber) || 0);
-        const servicesText = serviceList.length > 0 ? serviceList.join(" | ") : (day.note || "-");
+
+        const barberEarn = Number(day.barber) || 0;
+
+        // บวกสะสมผลรวม
+        grandTotalCust += countCust;
+        grandTotalBarber += barberEarn;
+        grandTotalShave += countShave;
+        grandTotalWash += countWash;
+        grandTotalDye += countDye;
 
         tableHtml += `
             <tr>
                 <td>${day.date}</td>
-                <td style="color: ${isOff ? '#e74c3c' : '#27ae60'}">${typeDay}</td>
-                <td class="money">${Number(day.total).toLocaleString()}</td>
-                <td>${Number(day.barber).toLocaleString()}</td>
-                <td class="money" style="color: #2980b9">${shopEarn.toLocaleString()}</td>
-                <td>${totalCustomers}</td>
-                <td class="note-col">${servicesText}</td>
+                <td>${displayDay}</td>
+                <td>${countCust}</td>
+                <td>${barberEarn.toLocaleString()}</td>
+                <td>${countShave || "-"}</td>
+                <td>${countWash || "-"}</td>
+                <td>${countDye || "-"}</td>
             </tr>`;
     });
 
+    // --- 📊 เพิ่มแถวสรุปผลรวม (Footer) ---
+    tableHtml += `
+        <tr class="t-foot">
+            <td colspan="2">รวมทั้งสิ้น</td>
+            <td>${grandTotalCust.toLocaleString()}</td>
+            <td>${grandTotalBarber.toLocaleString()}</td>
+            <td>${grandTotalShave}</td>
+            <td>${grandTotalWash}</td>
+            <td>${grandTotalDye}</td>
+        </tr>`;
+
     tableHtml += `</tbody></table></body></html>`;
 
-    // --- 📥 สั่งดาวน์โหลดเป็นไฟล์ .xls (Excel) ---
+    // --- 📥 ดาวน์โหลดไฟล์ ---
     const blob = new Blob([tableHtml], { type: 'application/vnd.ms-excel' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `Report_Barber_${m}.xls`; // นามสกุล .xls จะทำให้เปิดด้วย Excel แล้วเห็นสไตล์
+    link.download = `Report_Summary_${m}.xls`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
