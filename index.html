@@ -628,39 +628,31 @@ nav {
                     <i class="fas fa-history"></i> ประวัติเคลียร์เงิน
                 </button>
             </div>
-        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-top: 15px; margin-bottom: 12px;"> 
+       <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-top: 15px; margin-bottom: 12px; width: 100%;"> 
     
-            <div onclick="document.getElementById('histMonth').showPicker()" 
-                 class="btn-monthly" 
-                 style="background: linear-gradient(135deg, var(--btn-monthly1), var(--btn-monthly2)); color: var(--btn-text); border-radius:18px; padding:15px 5px; text-align:center; position:relative; box-shadow:0 8px 20px rgba(0,0,0,0.15); cursor:pointer; transition: 0.3s; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 1px solid var(--border);">
-                <i class="fas fa-calendar-check" style="font-size:20px; margin-bottom:5px;"></i>
-                <b style="font-size:12px;">สรุปภาพรวม</b>
-                <input type="month" id="histMonth" onchange="loadHistMonth()" style="position:absolute; inset:0; opacity:0; width:100%; height:100%; cursor:pointer;">
-            </div>
-        
-            <div onclick="document.getElementById('excelMonth').showPicker()" 
-                 class="btn-excel" 
-                 styl
-                e="background: linear-gradient(135deg, var(--btn-clear1), var(--btn-btn-clear2, var(--success))); color: var(--btn-text); border-radius:18px; padding:15px 5px; text-align:center; cursor:pointer; box-shadow: 0 8px 20px rgba(0,0,0,0.15); display: flex; flex-direction: column; align-items: center; justify-content: center; transition: 0.3s; position: relative; border: 1px solid var(--border);">
-                <i class="fas fa-file-excel" style="font-size:20px; margin-bottom:5px;"></i>
-                <b style="font-size:12px;">สรุปรายเดือน</b>
-                <input type="month" id="excelMonth" onchange="exportToExcel(this.value)" style="position:absolute; inset:0; opacity:0; width:100%; height:100%; cursor:pointer;">
-            </div>
-        
-            <div onclick="handleGoogleSheet()" 
-                 class="btn-sheets" 
-                 style="background: linear-gradient(135deg, #0F9D58, #0B8043); color: #fff; border-radius:18px; padding:15px 5px; text-align:center; cursor:pointer; box-shadow: 0 8px 20px rgba(0,0,0,0.15); display: flex; flex-direction: column; align-items: center; justify-content: center; transition: 0.3s; border: 1px solid rgba(0,0,0,0.1);">
-                <i class="fas fa-table" style="font-size:20px; margin-bottom:5px;"></i>
-                <b style="font-size:12px;">เปิดsheet</b>
-            </div>
+        <div onclick="document.getElementById('histMonth').showPicker()" 
+             class="btn-monthly" 
+             style="background: linear-gradient(135deg, var(--btn-monthly1), var(--btn-monthly2)); color: var(--btn-text); border-radius:18px; padding:15px 5px; text-align:center; position:relative; box-shadow:0 8px 20px rgba(0,0,0,0.15); cursor:pointer; transition: 0.3s; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 1px solid var(--border);">
+            <i class="fas fa-calendar-check" style="font-size:20px; margin-bottom:5px;"></i>
+            <b style="font-size:11px; white-space: nowrap;">สรุปภาพรวม</b>
+            <input type="month" id="histMonth" onchange="loadHistMonth()" style="position:absolute; inset:0; opacity:0; width:100%; height:100%; cursor:pointer;">
         </div>
-            <div onclick="openComparisonSelector()" class="btn-compare" style="border-radius: 25px; padding: 15px; text-align: center; cursor: pointer; box-shadow: 0 8px 15px rgba(0,0,0,0.1); display: flex; align-items: center; justify-content: center; gap: 10px;">         
-                <i class="fas fa-chart-line" style="font-size: 24px;"></i>
-                <b style="font-size: 16px;">เปรียบเทียบช่วงวันที่</b>
-            </div>
-        </div> 
+    
+        <div onclick="document.getElementById('excelMonth').showPicker()" 
+             class="btn-excel" 
+             style="background: linear-gradient(135deg, var(--btn-clear1), var(--btn-btn-clear2, var(--success))); color: var(--btn-text); border-radius:18px; padding:15px 5px; text-align:center; cursor:pointer; box-shadow: 0 8px 20px rgba(0,0,0,0.15); display: flex; flex-direction: column; align-items: center; justify-content: center; transition: 0.3s; position: relative; border: 1px solid var(--border);">
+            <i class="fas fa-file-excel" style="font-size:20px; margin-bottom:5px;"></i>
+            <b style="font-size:11px; white-space: nowrap;">สรุปรายเดือน</b>
+            <input type="month" id="excelMonth" onchange="exportToExcel(this.value)" style="position:absolute; inset:0; opacity:0; width:100%; height:100%; cursor:pointer;">
+        </div>
+    
+        <div onclick="handleGoogleSheet()" 
+             class="btn-sheets" 
+             style="background: linear-gradient(135deg, #0F9D58, #0B8043); color: #fff; border-radius:18px; padding:15px 5px; text-align:center; cursor:pointer; box-shadow: 0 8px 20px rgba(0,0,0,0.15); display: flex; flex-direction: column; align-items: center; justify-content: center; transition: 0.3s; border: 1px solid rgba(0,0,0,0.1);">
+            <i class="fas fa-table" style="font-size:20px; margin-bottom:5px;"></i>
+            <b style="font-size:11px; white-space: nowrap;">เปิดSheet</b>
+        </div>
     </div>
-
     <div id="modalSet" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); backdrop-filter:blur(15px); -webkit-backdrop-filter:blur(15px); z-index:9999; display:flex; align-items:center; justify-content:center; padding:15px;">
         <div style="background:var(--card); width:95%; max-width:420px; border-radius:35px; border:1px solid var(--border); display:flex; flex-direction:column; overflow:hidden; animation: slideUp 0.3s ease-out; box-shadow: 0 20px 60px rgba(0,0,0,0.5);">
             <div style="padding: 20px 20px 5px; text-align: center;">
@@ -3000,33 +2992,35 @@ function sendToLineFinal() {
         previewArea.style.display = "none";
     }
 }
+/* ==========================================================
+   SECTION 7: ANALYTICS, REPORTS & SHARING
+   ========================================================== */
+
 function handleGoogleSheet() {
+    // ใช้ปีกกาครอบเพื่อแยก Scope ป้องกันตัวแปร start ไปซ้ำกับฟังก์ชันอื่น
     const isAndroid = /Android/i.test(navigator.userAgent);
     const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-
-    // 1. ลิงก์สำหรับเปิดแอปโดยตรง (Protocol ของ Google Sheets)
-    const appUri = "googlesheets://"; 
     
-    // 2. ลิงก์สำหรับไปหน้าดาวน์โหลด (Store)
+    // ลิงก์สำหรับ Store
     const playStoreUrl = "https://play.google.com/store/apps/details?id=com.google.android.apps.docs.editors.sheets";
     const appStoreUrl = "https://apps.apple.com/th/app/google-sheets/id441411228";
 
-    // บันทึกเวลาที่เริ่มกด
-    const start = Date.now();
+    // 1. พยายามเปิดแอป Google Sheets ด้วย URL Scheme
+    // ถ้ามีแอปในเครื่อง มันจะเด้งออกจากเบราว์เซอร์ทันที
+    const startTime = Date.now();
+    window.location.href = "googlesheets://";
 
-    // พยายามเปิดแอป Google Sheets
-    window.location.href = appUri;
-
-    // ตั้งเวลาตรวจสอบ (ถ้าผ่านไป 2 วินาทีแล้วหน้าจอไม่เปลี่ยน แสดงว่าไม่มีแอป)
-    setTimeout(function() {
-        if (Date.now() - start < 2500) {
-            if (confirm("ไม่พบแอป Google Sheets ในเครื่องของคุณ ต้องการไปหน้าติดตั้งใช่หรือไม่?")) {
+    // 2. ตั้งเวลาเช็ค (ถ้าผ่านไป 2.5 วินาทีแล้วยังอยู่ที่เดิม แสดงว่าไม่มีแอป)
+    setTimeout(() => {
+        const now = Date.now();
+        // ถ้าเวลาห่างกันไม่มาก แสดงว่าหน้าจอไม่ได้ถูกสลับออกไปที่แอปอื่น
+        if (now - startTime < 2600) {
+            if (confirm("ไม่พบแอป Google Sheets ในเครื่องของคุณ\nต้องการไปหน้าติดตั้ง (Store) หรือไม่?")) {
                 if (isAndroid) {
                     window.location.href = playStoreUrl;
                 } else if (isIOS) {
                     window.location.href = appStoreUrl;
                 } else {
-                    // ถ้าเปิดบนคอมพิวเตอร์ ให้ไปที่หน้าเว็บ Google Sheets แทน
                     window.open("https://sheets.google.com", "_blank");
                 }
             }
