@@ -650,9 +650,8 @@ nav {
                      class="btn-sheets" 
                      style="background: linear-gradient(135deg, #0F9D58, #0B8043); color: #fff; border-radius:18px; padding:15px 5px; text-align:center; cursor:pointer; box-shadow: 0 8px 20px rgba(0,0,0,0.15); display: flex; flex-direction: column; align-items: center; justify-content: center; transition: 0.3s; border: 1px solid rgba(0,0,0,0.1);">
                     <i class="fas fa-table" style="font-size:20px; margin-bottom:5px;"></i>
-                    <b style="font-size:11px; white-space: nowrap;">ดูออนไลน์</b>
+                    <b style="font-size:11px; white-space: nowrap;">เปิดSheet</b>
                 </div>
-            
             </div>
             <div onclick="openComparisonSelector()" class="btn-compare" style="border-radius: 25px; padding: 15px; text-align: center; cursor: pointer; box-shadow: 0 8px 15px rgba(0,0,0,0.1); display: flex; align-items: center; justify-content: center; gap: 10px;">         
                 <i class="fas fa-chart-line" style="font-size: 24px;"></i>
@@ -2326,25 +2325,35 @@ async function exportToExcel() {
     }
 }
 function handleGoogleSheet() {
-    // ใช้ปีกกาครอบเพื่อแยก Scope ป้องกันตัวแปร start ไปซ้ำกับฟังก์ชันอื่น
     const isAndroid = /Android/i.test(navigator.userAgent);
     const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
     
-    // ลิงก์สำหรับ Store
     const playStoreUrl = "https://play.google.com/store/apps/details?id=com.google.android.apps.docs.editors.sheets";
     const appStoreUrl = "https://apps.apple.com/th/app/google-sheets/id441411228";
 
-    // 1. พยายามเปิดแอป Google Sheets ด้วย URL Scheme
-    // ถ้ามีแอปในเครื่อง มันจะเด้งออกจากเบราว์เซอร์ทันที
-    const startTime = Date.now();
+    let hasSwitched = false;
+    
+    const visibilityHandler = () => {
+        if (document.hidden) {
+            hasSwitched = true;
+        }
+    };
+    document.addEventListener("visibilitychange", visibilityHandler);
+    // พยายามเปิดแอป
     window.location.href = "googlesheets://";
 
-    // 2. ตั้งเวลาเช็ค (ถ้าผ่านไป 2.5 วินาทีแล้วยังอยู่ที่เดิม แสดงว่าไม่มีแอป)
     setTimeout(() => {
-        const now = Date.now();
-        // ถ้าเวลาห่างกันไม่มาก แสดงว่าหน้าจอไม่ได้ถูกสลับออกไปที่แอปอื่น
-        if (now - startTime < 2600) {
-            if (confirm("ไม่พบแอป Google Sheets ในเครื่องของคุณ\nต้องการไปหน้าติดตั้ง (Store) หรือไม่?")) {
+        document.removeEventListener("visibilitychange", visibilityHandler);
+
+        if (!hasSwitched) {
+            // 1. ใช้ notify แจ้งเตือนผู้ใช้ก่อน
+            notify("warning", "ไม่พบแอปพลิเคชัน", "กำลังตรวจสอบการติดตั้ง Google Sheets...");
+
+            // 2. ใช้ confirm เพื่อถามความสมัครใจในการไปหน้า Store
+            // (เนื่องจาก notify ส่วนใหญ่มักเป็นแค่การแสดงข้อความ การใช้ confirm ร่วมด้วยจะช่วยหยุดรอการตัดสินใจของผู้ใช้ครับ)
+            const userConfirm = confirm("ไม่พบแอป Google Sheets ในเครื่องของคุณ\nต้องการไปหน้าติดตั้ง (Store) เพื่อใช้งานหรือไม่?");
+            
+            if (userConfirm) {
                 if (isAndroid) {
                     window.location.href = playStoreUrl;
                 } else if (isIOS) {
@@ -2352,7 +2361,13 @@ function handleGoogleSheet() {
                 } else {
                     window.open("https://sheets.google.com", "_blank");
                 }
+            } else {
+                // แจ้งเตือนกรณีผู้ใช้ยกเลิก
+                notify("info", "ยกเลิก", "คุณสามารถใช้งานผ่านเบราว์เซอร์แทนได้");
             }
+        } else {
+            // กรณีเปิดแอปสำเร็จ (เผื่ออยากแจ้งเตือนเมื่อผู้ใช้สลับกลับมา)
+            notify("success", "สำเร็จ", "เปิดแอป Google Sheets เรียบร้อยแล้ว");
         }
     }, 2000);
 }
