@@ -2503,10 +2503,17 @@ function loadHistDaily() {
 function loadHistMonth() {
     const $ = (id) => document.getElementById(id);
     const m = $("histMonth").value;
-    if (!m) return alert("กรุณาเลือกเดือนก่อนครับ");
+    if (!m) {
+        if (window.notify) notify("⚠️ กรุณาเลือกเดือนก่อน", "warning");
+        else alert("กรุณาเลือกเดือนก่อน");
+        return;
+    }
 
-    if (typeof archives === 'undefined') return alert("ไม่พบฐานข้อมูลหลัก (archives)");
-
+    if (typeof archives === 'undefined') {
+        if (window.notify) notify("❌ ไม่พบฐานข้อมูลหลัก (archives)", "error");
+        else alert("ไม่พบฐานข้อมูลหลัก (archives)");
+        return;
+    }
     const filtered = archives.filter(a => a.date && a.date.startsWith(m));
     if (!filtered.length) {
         if ($("shopTotalMonth")) $("shopTotalMonth").innerText = "฿0";
@@ -2527,7 +2534,12 @@ function loadHistMonth() {
 
     filtered.forEach(day => {
         const dObj = new Date(day.date);
-        let wIdx = Math.ceil(dObj.getDate() / 7);
+        
+        // --- 🟢 แก้ไข Logic การนับสัปดาห์ตามปฏิทินจริง ---
+        // หาว่าวันที่ 1 ของเดือนนั้นตรงกับวันอะไร (0=อาทิตย์, 1=จันทร์...)
+        const firstDayOfMonth = new Date(dObj.getFullYear(), dObj.getMonth(), 1).getDay();
+        // คำนวณ Index ของสัปดาห์: (วันที่ปัจจุบัน + วันที่ว่างก่อนเริ่มวันที่ 1) / 7
+        let wIdx = Math.ceil((dObj.getDate() + firstDayOfMonth) / 7);
         const wKey = `สัปดาห์ที่ ${wIdx}`;
 
         if (!weeklyData[wKey]) {
@@ -2562,16 +2574,15 @@ function loadHistMonth() {
         monthBarber += dailyBarber;
         weeklyData[wKey].income += dailyIncome;
 
-// --- 🟢 แก้ไข Logic ให้รวมลูกค้าทุกคน (แม้ไม่ได้ระบุประเภท) ---
         let dayCustomerCount = 0; 
 
         if (day.details && Array.isArray(day.details)) {
             day.details.forEach(d => {
                 if (d.type === "SERVICE") {
-                    monthCount++;       // นับรวมลูกค้าทุกคนในเดือน
-                    dayCustomerCount++; // นับรวมลูกค้าทุกคนในวัน
-                    weeklyData[wKey].customers++; // นับรวมลูกค้าทุกคนในสัปดาห์
-                    // แยกนับเฉพาะกลุ่มที่ระบุประเภท (เพื่อใช้ในสถิติโครงสร้างลูกค้า)
+                    monthCount++;
+                    dayCustomerCount++; 
+                    weeklyData[wKey].customers++; 
+                    
                     const type = String(d.custType || "").toLowerCase().trim();
                     if (type === "new") {
                         countNew++;
@@ -2580,7 +2591,7 @@ function loadHistMonth() {
                         countRegular++;
                         weeklyData[wKey].countRegular++;
                     }
-                    // ลูกค้าที่ไม่ระบุประเภท จะถูกนับรวมใน monthCount ไปแล้ว แต่ไม่เข้านับใน countNew/Regular
+
                     const svcs = Array.isArray(d.svcs) ? d.svcs : [d.svcs];
                     svcs.forEach(s => {
                         if (!s) return;
@@ -2615,7 +2626,6 @@ function loadHistMonth() {
 
     const avgCustomerPerDay = workDays > 0 ? (monthCount / workDays) : 0;
     
-    // ส่งค่าไปสร้างรายงาน
     generateMonthlyReport(m, monthTotal, monthBarber, monthCount, workDays, offDays, avgCustomerPerDay, weeklyData, hairStats, serviceStats, monthGuarDays, countNew, countRegular);
 }
 function generateMonthlyReport(m, monthTotal, monthBarber, monthCount, workDays, offDays, avgCustomerPerDay, weeklyData, hairStats, serviceStats, monthGuarDays, countNew, countRegular) {
@@ -2729,14 +2739,11 @@ function generateMonthlyReport(m, monthTotal, monthBarber, monthCount, workDays,
         // 🔵 ใช้สี Primary (น้ำเงิน/สว่าง) | 🟡 ใช้สี Warning/Accent (ส้ม/ทอง)
         const newColor = "var(--primary)"; 
         const regColor = "var(--warning)"; 
-        
-        // ย้ายปีกกามาปิดตรงนี้ เพื่อให้ตัวแปรสีถูกเรียกใช้ข้างล่างได้
         const newText = `<span style="color: ${newColor}; font-weight: bold;">ใหม่ ${totalNew > 0 ? totalNew : "-"}</span>`;
         const regText = `<span style="color: ${regColor}; font-weight: bold;">ประจำ ${totalRegular > 0 ? totalRegular : "-"}</span>`;
         
         insights.push(`โครงสร้างลูกค้าเดือนนี้: <b>${totalRegular > totalNew ? "ลูกค้าประจำเป็นฐานหลัก" : totalNew > totalRegular ? "ลูกค้าใหม่เพิ่มมากขึ้น" : "สัดส่วนลูกค้าพอๆ กัน"} (${regText} / ${newText})</b>`);
-        
-        // แยกสีตรงชื่อสัปดาห์ที่ลูกค้าแต่ละกลุ่มเยอะที่สุด
+             
         const maxNewText = `<span style="color: ${newColor};">ใหม่ (<b>${maxNewWeek !== "-" ? maxNewWeek : "-"}</b>)</span>`;
         const maxRegText = `<span style="color: ${regColor};">ประจำ (<b>${maxRegWeek !== "-" ? maxRegWeek : "-"}</b>)</span>`;
         
