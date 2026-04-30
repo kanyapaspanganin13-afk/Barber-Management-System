@@ -509,11 +509,11 @@ nav {
             </select>
             <select id="extra1" style="height:70px; border-radius:15px; border: 1px solid var(--border); font-weight:700; background: var(--bg); color: var(--text); padding:0 5px; font-size:22px; outline:none;">
                 <option value="">➕บริการ1</option>
-                <option value="เด็ก">เด็ก</option><option>โกนหนวด</option><option>กันหน้า</option><option>กันจอน</option><option>สระผม</option><option>ย้อมผม</option><option>ดัดผม</option><option>ย้อมแฟชั่น</option>
+                <option value="เด็ก">เด็ก</option><option>โกนหนวด</option><option>กันหน้า</option><option>กันจอน</option><option>สระผม</option><option>ย้อมผม</option><option>ดัดผม</option><option>ย้อมแฟชั่น</option><option>แคะหู</option>
             </select>
             <select id="extra2" style="height:70px; border-radius:15px; border: 1px solid var(--border); font-weight:700; background: var(--bg); color: var(--text); padding:0 5px; font-size:22px; outline:none;">
                 <option value="">➕บริการ2</option>
-                <option value="เด็ก">เด็ก</option><option>โกนหนวด</option><option>กันหน้า</option><option>กันจอน</option><option>สระผม</option><option>ย้อมผม</option><option>ดัดผม</option><option>ย้อมแฟชั่น</option>
+                <option value="เด็ก">เด็ก</option><option>โกนหนวด</option><option>กันหน้า</option><option>กันจอน</option><option>สระผม</option><option>ย้อมผม</option><option>ดัดผม</option><option>ย้อมแฟชั่น</option><option>แคะหู</option>
             </select>
         </div>
 
@@ -2692,11 +2692,10 @@ function generateMonthlyReport(m, monthTotal, monthBarber, monthCount, workDays,
         const maxVal = entries[0][1];
         
         // รายการที่ถือว่าเป็น "บริการเสริม" (จะใช้สีที่ต่างจากทรงผม)
-        const extraSvcs = ["โกนหนวด", "กันหน้า", "สระผม", "กันจอน", "ย้อมแฟชั่น", "ดัดผม"];
+        const extraSvcs = ["โกนหนวด", "กันหน้า", "สระผม", "กันจอน", "ย้อมแฟชั่น", "ดัดผม", "แคะหู"];
     
         return entries.map(([name, count]) => {
             const width = maxVal > 0 ? (count / maxVal) * 100 : 0;
-            
             // 🎨 เลือกสีตามประเภท:
             // ถ้าเป็นบริการเสริม -> ใช้สี Primary (ฟ้า/น้ำเงิน ตามธีม)
             // ถ้าเป็นทรงผม -> ใช้สี Warning (ส้ม/ทอง ตามธีม)
