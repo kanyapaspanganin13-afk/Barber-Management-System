@@ -61,48 +61,61 @@ function renderComparisonReport(v) {
         const [y, m, d] = dateStr.split('-');
         return `${dayName} ${d}/${m}/${(parseInt(y) + 543).toString().slice(-2)}`;
     };
-
     const fetchStats = (start, end) => {
-        let list = [];
-        let currentDate = new Date(start);
-        const stopDate = new Date(end);
+    let list = [];
+    let currentDate = new Date(start);
+    const stopDate = new Date(end);
 
-        while (currentDate <= stopDate) {
-            const dateStr = currentDate.toISOString().split('T')[0];
-            if (typeof archives !== 'undefined') {
-                const dayData = archives.find(a => a.date === dateStr);
-               if (dayData) {
-                    let realCustomerCount = 0;
-                    if (dayData.details && Array.isArray(dayData.details)) {
-                        realCustomerCount = dayData.details.filter(d => {
-                            const itemName = Array.isArray(d.svcs) ? d.svcs.join("") : String(d.svcs || "");
-                            const isInsurance = d.type === "GUARANTEE_CLAIM" || itemName.includes("ประกัน");
-                            return !isInsurance; 
-                        }).length;
-                    }
-                    list.push({
-                        date: formatThaiDate(dateStr),
-                        count: realCustomerCount,
-                        barber: dayData.barber || 0
-                    });
+    while (currentDate <= stopDate) {
+        const dateStr = currentDate.toISOString().split('T')[0];
+        if (typeof archives !== 'undefined') {
+            const dayData = archives.find(a => a.date === dateStr);
+            if (dayData) {
+                let realCustomerCount = 0;
+                let displayBarber = Number(dayData.barber) || 0;
+                
+                // 🎯 1. เช็คสถานะวันหยุดจาก type โดยตรง (แม่นยำที่สุด)
+                const isHoliday = dayData.type === "HOLIDAY";
+
+                if (isHoliday) {
+                    // ถ้ากดปุ่มวันหยุด: ลูกค้า 0, รายได้ 0
+                    realCustomerCount = 0;
+                    displayBarber = 0;
+                } else {
+                    // 🎯 2. ถ้าไม่ใช่ปกติ (วันทำงานหรือวันประกัน)
+                    const details = Array.isArray(dayData.details) ? dayData.details : [];
+                    
+                    // นับเฉพาะลูกค้าจริง (ไม่รวมประกัน)
+                    realCustomerCount = details.filter(d => {
+                        const itemName = Array.isArray(d.svcs) ? d.svcs.join("") : String(d.svcs || "");
+                        const isInsurance = d.type === "GUARANTEE_CLAIM" || itemName.includes("ประกัน");
+                        const hasSvc = Array.isArray(d.svcs) ? d.svcs.length > 0 : (d.svcs && d.svcs !== "");
+                        return hasSvc && !isInsurance;
+                    }).length;
+
+                    // ยอดเงิน displayBarber คงค่าเดิมไว้ (ถ้าเป็นวันประกัน ยอดเงินจะโชว์ตามที่ตั้งค่า)
                 }
+                list.push({
+                    date: formatThaiDate(dateStr),
+                    count: realCustomerCount,
+                    barber: displayBarber
+                });
             }
-            currentDate.setDate(currentDate.getDate() + 1);
         }
-        const sumC = list.reduce((a, b) => a + Number(b.count || 0), 0);
-        const sumE = list.reduce((a, b) => a + Number(b.barber || 0), 0);
-        
-        // 🎯 1. ลด padding แถวรายวันให้ชิดกัน (จาก 10px เหลือ 4px)
-        const rowList = list.length > 0 ? list.map(d => `
-            <div style="display:flex; justify-content:space-between; padding:4px 8px; border-bottom:1px solid rgba(0,0,0,0.05); font-size:12px; color:#334155;">
-                <span style="flex:1.5; font-weight:500;">${d.date}</span>
-                <span style="flex:1; text-align:center; color:#1d4ed8; font-weight:700;">👤 ${d.count}</span>
-                <span style="flex:1.2; text-align:right; color:#059669; font-weight:700;">฿${Number(d.barber).toLocaleString()}</span>
-            </div>`).join("") : `<div style="padding:10px; text-align:center; color:#94a3b8;">❌ ไม่พบข้อมูล</div>`;
-        
-        return { sumC, sumE, rowList, range: `${formatThaiDate(start)} - ${formatThaiDate(end)}` };
-    };
+        currentDate.setDate(currentDate.getDate() + 1);
+    }
+    const sumC = list.reduce((a, b) => a + Number(b.count || 0), 0);
+    const sumE = list.reduce((a, b) => a + Number(b.barber || 0), 0);
 
+    const rowList = list.length > 0 ? list.map(d => `
+        <div style="display:flex; justify-content:space-between; padding:4px 8px; border-bottom:1px solid rgba(0,0,0,0.05); font-size:12px; color:#334155;">
+            <span style="flex:1.5; font-weight:500;">${d.date}</span>
+            <span style="flex:1; text-align:center; color:#1d4ed8; font-weight:700;">👤 ${d.count}</span>
+            <span style="flex:1.2; text-align:right; color:#059669; font-weight:700;">฿${d.barber.toLocaleString()}</span>
+        </div>`).join("") : `<div style="padding:10px; text-align:center; color:#94a3b8;">❌ ไม่พบข้อมูล</div>`;
+
+    return { sumC, sumE, rowList, range: `${formatThaiDate(start)} - ${formatThaiDate(end)}` };
+};
     const d1 = fetchStats(v.s1, v.e1);
     const d2 = fetchStats(v.s2, v.e2);
 // 🎯 ปรับสีพื้นหลังให้เข้มขึ้น (Blue/Green) และนำเส้นขอบออก
