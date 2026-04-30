@@ -2933,29 +2933,43 @@ function shareLine() {
     let stats = {}, realCustomerCount = 0;
     let newCount = 0, regCount = 0;
 
-    // 📝 3. ประมวลผลรายการลูกค้า
+    // 📝 3. ประมวลผลรายการลูกค้า (ปรับปรุงการแยกยอด Mix)
     const clientList = today
-        .sort((a, b) => a.time.localeCompare(b.time))
-        .map((r, i) => {
-            const p = Number(r.price) || 0;
-            const t = Number(r.tip) || 0;
-            tot += p; tips += t;
-
-            if (r.pay === 'Trans') trans += (p + t);
-            else cash += p;
-
-            if (!['GUARANTEE', 'HOLIDAY'].includes(String(r.type).toUpperCase()) && p > 0) {
-                realCustomerCount++;
-                const cType = String(r.custType || "").toLowerCase();
-                if (cType === 'new') newCount++;
-                else if (cType === 'regular') regCount++;
-                if (r.hair && r.hair.includes("เด็ก")) stats["เด็ก"] = (stats["เด็ก"] || 0) + 1;
-                (r.svcs || []).forEach(s => { if (s) stats[s] = (stats[s] || 0) + 1; });
-            }
-            const tShow = r.endTime ? `${r.time}-${r.endTime}` : r.time;
-            return `${i + 1}. [${tShow}] ${(r.svcs || []).join('+')} = ${p}${t ? ` (+ทิป ${t})` : ''} ${r.pay === 'Trans' ? '📱' : '💶'}`;
-        }).join('\n');
-
+            .sort((a, b) => a.time.localeCompare(b.time))
+            .map((r, i) => {
+                const p = Number(r.price) || 0;
+                const t = Number(r.tip) || 0;
+                tot += p; tips += t;
+    
+                let detailText = ""; 
+    
+                if (r.pay === 'Mix') {
+                    const pTrans = Number(r.payTrans) || 0;
+                    const pCash = Number(r.payCash) || 0;
+                    trans += pTrans;
+                    cash += (pCash - t);
+                    detailText = ` (สด:${pCash}/โอน:${pTrans})`; // ✅ เตรียมข้อความยอดแยก
+                } else if (r.pay === 'Trans' || r.pay === 'โอน') {
+                    trans += (p + t);
+                } else {
+                    cash += p;
+                }
+    
+                if (!['GUARANTEE', 'HOLIDAY'].includes(String(r.type).toUpperCase()) && p > 0) {
+                    realCustomerCount++;
+                    const cType = String(r.custType || "").toLowerCase();
+                    if (cType === 'new') newCount++;
+                    else if (cType === 'regular') regCount++;
+                    if (r.hair && r.hair.includes("เด็ก")) stats["เด็ก"] = (stats["เด็ก"] || 0) + 1;
+                    (r.svcs || []).forEach(s => { if (s) stats[s] = (stats[s] || 0) + 1; });
+                }
+    
+                const tShow = r.endTime ? `${r.time}-${r.endTime}` : r.time;
+                const pIcon = r.pay === 'Trans' ? '📱' : (r.pay === 'Mix' ? '🌓' : '💶');
+                
+                // ✅ แก้ไขบรรทัดนี้: ใส่ detailText ลงไปในข้อความที่จะ return ด้วย
+                return `${i + 1}. [${tShow}] ${(r.svcs || []).join('+')} = ${p}${t ? ` (+ทิป ${t})` : ''}${detailText} ${pIcon}`;
+            }).join('\n');
     // 📊 4. สถิติงาน
     const allowed = ["เด็ก", "สระผม", "โกนหนวด", "ย้อมผม", "ย้อมสี"];
     const icons = { "เด็ก": "🧒", "สระ": "🧼", "โกน": "🪒", "ย้อม": "🎨" };
@@ -2966,9 +2980,9 @@ function shareLine() {
     // 💰 5. คำนวณรายได้ช่าง/ร้าน
     let bEarn = Math.max(tot * (conf.perc / 100), conf.guar) + tips;
     let shopEarn = tot - (bEarn - tips);
-    let settle = cash - bEarn; // บวก=ช่างคืนร้าน, ลบ=ร้านคืนช่าง
+    let settle = cash - bEarn;
 
-    // 🔄 6. ระบบยอดค้างสะสม (Period Logic)
+    // 🔄 6. ระบบยอดค้างสะสม
     let oldBalance = 0;
     let periodText = "";
     let hasOldBalance = false;
@@ -2978,13 +2992,11 @@ function shareLine() {
         if (pendingDays.length > 0) {
             hasOldBalance = true;
             oldBalance = pendingDays.reduce((sum, day) => sum + (Number(-day.settle) || 0), 0);
-            
             const fmt = (iso) => {
                 const [iy, im, id] = iso.split('-');
                 return `${parseInt(id)}/${parseInt(im)}`;
             };
             const yr = (iso) => (parseInt(iso.split('-')[0]) + 543).toString().slice(-2);
-
             if (pendingDays.length === 1) {
                 periodText = `${fmt(pendingDays[0].date)}/${yr(pendingDays[0].date)}`;
             } else {
@@ -2992,7 +3004,7 @@ function shareLine() {
             }
         }
     }
-    let todayDiff = -settle; // แปลงค่าให้เป็น "ร้านค้างช่าง" เพื่อรวมกับ oldBalance
+    let todayDiff = -settle;
     let finalNet = oldBalance + todayDiff;
 
     // ✉️ 7. ประกอบข้อความ Template
@@ -3008,28 +3020,23 @@ function shareLine() {
     msg += `🤵 ช่าง: ${Math.floor(bEarn).toLocaleString()}\n🏠 ร้าน: ${Math.floor(shopEarn).toLocaleString()}\n`;
     msg += `-------------------------\n`;
 
-// 8. ส่วนแสดงผลการจ่ายเงิน (Logic ซ่อน/แสดง)
+    // 8. ส่วนแสดงผลการจ่ายเงิน
     if (hasOldBalance && oldBalance !== 0) {
-        // ✅ ปรับตรงนี้ให้สลับสี 🟧 ส้ม (ช่างคืนร้าน) / 🟦 น้ำเงิน (ร้านคืนช่าง)
         let settleColor = settle > 0 ? '🟧' : '🟦';
         let settleText = settle > 0 ? 'ช่างคืนร้าน' : 'ร้านคืนช่าง';
-        
         msg += `${settleColor} ${settleText}: ${Math.abs(Math.floor(settle)).toLocaleString()} บาท\n`;
         msg += `-------------------------\n`;
         msg += `🚨 สถานะบัญชี\n`;
         msg += `วันที่ ${periodText}: ${oldBalance > 0 ? 'ร้านค้าง' : 'ช่างค้าง'} ${Math.abs(oldBalance)} บาท\n`;
         msg += `(${Math.abs(oldBalance)} ${todayDiff >= 0 ? '+' : '-'} ${Math.abs(Math.floor(todayDiff))}) = ${Math.abs(Math.floor(finalNet))}\n\n`;
-        
-        // ✅ ปรับยอดสุทธิให้มีอีโมจิบอกสถานะชัดเจนด้วย
         let finalColor = finalNet > 0 ? '🟦' : '🟧';
         msg += `📌 ${finalColor} ยอดสุทธิ: ${finalNet > 0 ? 'ร้านคืนช่าง' : 'ช่างคืนร้าน'} ${Math.abs(Math.floor(finalNet)).toLocaleString()} บาท\n`;
-        
     } else {
-        // กรณีไม่มีค้างเก่า โชว์บรรทัดเดียวจบ (อันนี้ของเดิมพี่ดีอยู่แล้ว)
-        let todayText = settle > 0 ? `🟧 ช่างคืนร้าน: ${Math.abs(settle).toLocaleString()} บาท` : `🟦 ร้านคืนช่าง: ${Math.abs(settle).toLocaleString()} บาท`;
+        let todayText = settle > 0 ? `🟧 ช่างคืนร้าน: ${Math.abs(Math.floor(settle)).toLocaleString()} บาท` : `🟦 ร้านคืนช่าง: ${Math.abs(Math.floor(settle)).toLocaleString()} บาท`;
         if (settle === 0) todayText = `✅ ยอดลงตัวพอดี`;
         msg += `${todayText}\n`;
     }
+
     // 9. แสดง Preview
     const msgEdit = $("msgEdit");
     const previewArea = $("linePreview");
